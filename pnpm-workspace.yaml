@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+# Older packages often predate provenance signing. Keep strict trust checks for
+# the last year while allowing mature transitive dependencies such as semver 6.
+trustPolicyIgnoreAfter: 525600

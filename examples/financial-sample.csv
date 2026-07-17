@@ -1,0 +1,31 @@
+Date,Country,Segment,Product,Sales,Profit,COGS,Units Sold
+2026-01-01,France,Government,Aster,128000,28400,75600,320
+2026-01-01,Germany,Enterprise,Nova,114000,22100,70100,270
+2026-01-01,Canada,Midmarket,Orbit,96000,18700,61200,240
+2026-01-01,Spain,Small Business,Aster,72000,12100,48900,180
+2026-01-01,United States,Channel Partners,Nova,138000,31600,82400,350
+2026-02-01,France,Enterprise,Orbit,133000,30700,78100,330
+2026-02-01,Germany,Government,Aster,119000,24600,72400,290
+2026-02-01,Canada,Small Business,Nova,83000,14900,53600,205
+2026-02-01,Spain,Midmarket,Orbit,101000,19200,64900,255
+2026-02-01,United States,Channel Partners,Aster,146000,34200,86100,370
+2026-03-01,France,Midmarket,Nova,141000,32900,82400,345
+2026-03-01,Germany,Enterprise,Orbit,127000,26300,76600,305
+2026-03-01,Canada,Government,Aster,108000,21800,67400,268
+2026-03-01,Spain,Small Business,Nova,88000,15700,55800,218
+2026-03-01,United States,Channel Partners,Orbit,154000,36900,90200,392
+2026-04-01,France,Government,Orbit,149000,35100,86100,365
+2026-04-01,Germany,Midmarket,Aster,132000,27900,78800,318
+2026-04-01,Canada,Enterprise,Nova,116000,23400,70800,282
+2026-04-01,Spain,Small Business,Orbit,92000,16900,57600,226
+2026-04-01,United States,Channel Partners,Aster,162000,39100,94100,410
+2026-05-01,France,Enterprise,Aster,158000,38200,90600,388
+2026-05-01,Germany,Government,Nova,139000,30100,81700,336
+2026-05-01,Canada,Midmarket,Orbit,124000,25700,74900,301
+2026-05-01,Spain,Small Business,Aster,97000,18100,60200,239
+2026-05-01,United States,Channel Partners,Nova,171000,42300,97800,431
+2026-06-01,France,Midmarket,Orbit,166000,40800,94200,407
+2026-06-01,Germany,Enterprise,Aster,148000,32600,85400,357
+2026-06-01,Canada,Government,Nova,131000,27600,78100,319
+2026-06-01,Spain,Small Business,Orbit,103000,19700,62800,252
+2026-06-01,United States,Channel Partners,Aster,184000,46700,103200,459

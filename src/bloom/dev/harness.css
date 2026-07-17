@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+#root { width: min(100%, 760px); }
+.harness-card {
+  width: 100%;
+  min-height: 440px;
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.harness-card h1 { margin: 0; font-size: var(--text-lg); }
+.harness-card p { margin: var(--space-1) 0 0; color: var(--muted); }
+.harness-widget { height: 330px; padding-top: var(--space-6); }

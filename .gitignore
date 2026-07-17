@@ -1,0 +1,23 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Local tooling
+.repolens/
+playwright-report/
+test-results/
+*.log
+*.local
+
+# Secrets and environment-specific configuration
+.env
+.env.*
+!.env.example
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

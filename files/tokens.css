@@ -1,0 +1,321 @@
+/* ==========================================================================
+   DESIGN TOKENS — Databloom / Sales overview
+   Un seul fichier source de vérité pour les couleurs, la typo, les espacements.
+   Toujours importer ce fichier avant d'écrire du CSS de composant.
+   Ne jamais redéclarer une couleur en dur (hex) ailleurs : passer par une variable.
+   ========================================================================== */
+
+:root{
+  /* ---- Neutrals (fond / surfaces / texte) ---- */
+  --bg:            #F6F7F9;  /* fond de page */
+  --surface:       #FFFFFF;  /* cartes, inputs, table */
+  --surface-alt:   #EEF1F4;  /* header de table, bulle IA, zone active */
+  --border:        #E1E5EA;  /* séparateurs, bordures par défaut */
+  --border-strong: #CBD2DA;  /* bordures de champs, focus non actif */
+  --ink:           #11151C;  /* texte principal */
+  --ink-soft:      #5C6572;  /* texte secondaire, labels, méta */
+  --muted:         #A6ADB6;  /* placeholders, valeurs vides ("—") */
+
+  /* ---- Accent produit (1 seule couleur de marque) ---- */
+  --accent:        #2F5D62;  /* boutons primaires, liens, focus ring, sélection */
+  --accent-soft:   #DCE9E8;  /* fond teinté sur accent (chips, hover) */
+
+  /* ---- Sémantique (signification fixe, jamais utilisée pour autre chose) ---- */
+  --pos:           #2E7D5B;  /* valeur positive : profit, croissance, statut OK */
+  --pos-soft:      #DEEEE6;
+  --neg:           #B0402C;  /* valeur négative : perte, erreur, alerte */
+  --neg-soft:      #F6E4DF;
+
+  /* ---- Palette catégorielle : UNIQUEMENT pour la dimension "Segment" ----
+     Ne pas réutiliser ces couleurs pour un autre graphique (pays, produit, etc.)
+     même si ça a l'air joli — une couleur ne doit avoir qu'UNE seule signification
+     dans toute l'app. Si un graphique n'a pas de dimension catégorielle porteuse
+     de sens, utiliser une seule teinte (voir --country-c / --line-c ci-dessous). */
+  --seg-government: #4A6FA5;
+  --seg-midmarket:  #7C6FA0;
+  --seg-channel:    #3F8F8C;
+  --seg-enterprise: #C08A3E;
+  --seg-small-biz:  #6E8B4F;
+
+  /* ---- Teintes fonctionnelles à usage unique ---- */
+  --country-c:     #3F6FA0;  /* tout graphique "par pays" sans code couleur dédié */
+  --line-c:        #5B4B9A;  /* toute courbe temporelle (séries chronologiques) */
+  --user-bg:       #EFEFFB;  /* bulle utilisateur dans le chat */
+  --user-ink:      #4A3F8A;
+
+  /* ---- Typographie ----
+     Sans = UI, texte, labels. Mono = TOUJOURS pour les nombres (tabular-nums),
+     jamais de police sans pour un chiffre affiché dans une carte KPI, un axe,
+     une cellule de tableau numérique. */
+  --font-ui:  'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-num: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
+
+  /* Échelle typographique (px) */
+  --text-xs:   11px;   /* labels d'axe, méta discrète */
+  --text-sm:   12.5px; /* labels secondaires, sous-titres de carte */
+  --text-base: 14px;   /* corps de texte par défaut */
+  --text-md:   15px;   /* titres de carte / widget */
+  --text-lg:   20px;   /* titres de section */
+  --text-xl:   26px;   /* titre de page (h1) */
+  --text-kpi:  38px;   /* gros chiffre KPI */
+
+  /* ---- Espacements (échelle 4px) ----
+     Toujours piocher dans cette échelle. Ne jamais écrire une valeur de
+     padding/margin arbitraire (ex: 13px, 17px) — arrondir au multiple le
+     plus proche pour garder une grille cohérente. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ---- Rayons ---- */
+  --radius-sm: 6px;   /* chips, badges, petits boutons */
+  --radius-md: 8px;   /* boutons, inputs, icônes */
+  --radius-lg: 12px;  /* cartes, panneaux */
+
+  /* ---- Ombres ---- */
+  --shadow-resting: 0 1px 2px rgba(17,21,28,0.04);
+  --shadow-hover:   0 6px 18px rgba(17,21,28,0.08);
+  --shadow-focus:   0 0 0 3px var(--accent-soft);
+}
+
+/* ==========================================================================
+   BASE
+   ========================================================================== */
+*{ box-sizing:border-box; }
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-ui);
+  font-size:var(--text-base);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Tout chiffre affiché passe en police mono + chiffres tabulaires,
+   sans exception (tableaux, axes de graphique, KPI). */
+.num{
+  font-family:var(--font-num);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ==========================================================================
+   COMPOSANT : Carte
+   ========================================================================== */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  padding:18px 18px 14px;
+  box-shadow:var(--shadow-resting);
+  transition:box-shadow .15s ease, transform .15s ease;
+}
+.card:hover{
+  box-shadow:var(--shadow-hover);
+  transform:translateY(-1px);
+}
+/* État sélectionné : anneau doux, jamais une bordure vive de couleur saturée. */
+.card.selected{
+  border-color:var(--accent);
+  box-shadow:var(--shadow-focus), var(--shadow-hover);
+}
+
+/* ==========================================================================
+   COMPOSANT : Chip / Badge
+   Un badge de statut = fond teinté + texte de la même famille de couleur.
+   Ne jamais utiliser une couleur d'alerte (orange/rouge) pour un statut neutre
+   ou positif — réserver --neg aux vrais problèmes.
+   ========================================================================== */
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-size:var(--text-xs);
+  font-weight:600;
+  padding:3px 8px;
+  border-radius:var(--radius-sm);
+}
+.chip-neutral{ border:1px solid var(--border); color:var(--ink-soft); }
+.chip-accent{ background:var(--accent-soft); color:var(--accent); }
+.chip-pos{ background:var(--pos-soft); color:var(--pos); }
+.chip-neg{ background:var(--neg-soft); color:var(--neg); }
+
+/* ==========================================================================
+   COMPOSANT : Input / champ de saisie
+   ========================================================================== */
+.input{
+  width:100%;
+  border:1px solid var(--border-strong);
+  border-radius:var(--radius-md);
+  padding:9px 12px;
+  font-family:var(--font-ui);
+  font-size:13.5px;
+  background:var(--surface);
+  color:var(--ink);
+}
+.input:focus{
+  outline:2px solid var(--accent);
+  outline-offset:1px;
+  border-color:var(--accent);
+}
+
+/* ==========================================================================
+   COMPOSANT : Bouton
+   ========================================================================== */
+.btn{
+  border-radius:var(--radius-md);
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--ink-soft);
+  font-family:var(--font-ui);
+  font-weight:600;
+  font-size:13px;
+  cursor:pointer;
+  padding:8px 14px;
+}
+.btn:hover{ color:var(--ink); border-color:var(--border-strong); }
+.btn-primary{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#fff;
+}
+
+/* ==========================================================================
+   COMPOSANT : Tableau de données
+   Règles : header collant, alignement à droite + mono pour toute colonne
+   numérique, valeurs vides en "—" discret (jamais un vide silencieux, jamais
+   la même graisse que la donnée réelle).
+   ========================================================================== */
+table{ border-collapse:separate; border-spacing:0; width:100%; }
+thead th{
+  position:sticky; top:0; z-index:2;
+  background:var(--surface-alt);
+  text-align:left;
+  font-size:var(--text-xs);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  color:var(--ink-soft);
+  padding:11px 14px;
+  border-bottom:1px solid var(--border-strong);
+  white-space:nowrap;
+}
+thead th.num{ text-align:right; }
+tbody td{
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  font-size:13.5px;
+}
+tbody tr:hover td{ background:#F7FAF9; }
+tbody td.num{ text-align:right; font-family:var(--font-num); font-variant-numeric:tabular-nums; }
+td.empty{ color:var(--muted); font-style:italic; }
+
+/* ==========================================================================
+   COMPOSANT : Graphiques (SVG)
+   Règles obligatoires :
+   1. Toute donnée catégorielle (segment, pays, produit) : BAR, jamais LINE.
+      LINE réservé aux séries strictement chronologiques (mois, dates).
+   2. Chaque graphique affiche ses valeurs (labels au-dessus des barres /
+      sur le dernier point de la courbe) — ne jamais laisser l'utilisateur
+      deviner une hauteur.
+   3. Toujours un axe avec grille légère (--border) et ticks au format compact
+      (12k, 1,2M) + un tooltip natif (<title>) avec la valeur exacte complète.
+   4. Labels de catégorie : retour à la ligne (2 lignes max), jamais de
+      troncature en "…" qui coupe un mot au milieu.
+   5. Une seule teinte par graphique SAUF quand la dimension affichée EST
+      la même que la palette catégorielle définie plus haut (ex: Segment).
+   ========================================================================== */
+.axis-label{ font-family:var(--font-num); font-size:10px; fill:var(--ink-soft); }
+.value-label{ font-family:var(--font-num); font-size:11px; font-weight:600; fill:var(--ink); }
+.cat-label{ font-family:var(--font-ui); font-size:11px; fill:var(--ink-soft); }
+
+/* ==========================================================================
+   COMPOSANT : Message de chat
+   Règles : jamais de bordure complète autour de chaque tour de conversation.
+   La distinction utilisateur / IA se fait par l'alignement + le fond teinté,
+   pas par un cadre. Un seul identifiant (nom OU avatar, pas les deux répétés)
+   par message.
+   ========================================================================== */
+.msg-body{
+  font-size:13.5px;
+  padding:9px 13px;
+  border-radius:12px;
+  line-height:1.5;
+}
+.msg-row.ai .msg-body{ background:var(--surface-alt); border-top-left-radius:4px; }
+.msg-row.user .msg-body{ background:var(--user-bg); color:var(--user-ink); border-top-right-radius:4px; }
+.msg-body strong{ font-weight:700; } /* le markdown **gras** doit toujours être parsé, jamais affiché en texte brut avec les astérisques */
+
+/* ==========================================================================
+   THÈME SOMBRE
+   Même nom de variable, valeur différente — aucun composant ne doit
+   référencer une couleur autrement que via ces tokens, sinon le thème sombre
+   ne les couvrira pas. Le fond n'est jamais noir pur (#000) : on suit la
+   même logique que la plupart des librairies de dataviz sombres (reaviz
+   utilise rgb(17,17,17)) — un noir pur écrase les ombres et les élévations.
+   ========================================================================== */
+[data-theme="dark"]{
+  --bg:            #111315;
+  --surface:       #1B1E22;
+  --surface-alt:   #23272C;
+  --border:        #2E333A;
+  --border-strong: #3D434B;
+  --ink:           #E8EAED;
+  --ink-soft:      #9AA3AF;
+  --muted:         #6B7280;
+
+  --accent:        #6FB3B8;  /* éclairci depuis #2F5D62 : la teinte d'origine est trop sombre/mate sur fond #111 */
+  --accent-soft:   #1E3336;
+
+  --pos:           #4FAE83;
+  --pos-soft:      #17301F;
+  --neg:           #E1725A;
+  --neg-soft:      #3A1D16;
+
+  --seg-government: #5C86C4;
+  --seg-midmarket:  #9483BE;
+  --seg-channel:    #52ADA8;
+  --seg-enterprise: #D9A052;
+  --seg-small-biz:  #8CAE6E;
+
+  --country-c:     #5AA0E0;
+  --line-c:        #A08FD1;
+  --user-bg:       #232042;
+  --user-ink:      #C7BEEA;
+}
+
+/* ==========================================================================
+   PERSONNALISATION PAR COMPOSANT
+   Deux besoins différents :
+   1. Surcharger une valeur pour TOUT le produit (thème) → éditer les tokens
+      ci-dessus, jamais une valeur locale.
+   2. Surcharger UNE instance précise d'un widget (l'utilisateur choisit une
+      couleur custom pour ce graphique-là) → redéfinir la variable en inline
+      style sur le conteneur du widget, jamais dans un fichier CSS global.
+      Exemple : <div class="card" style="--widget-accent:#E85D9C">
+      Le composant interne doit lire var(--widget-accent, var(--accent))
+      avec fallback sur le token global, jamais une couleur en dur.
+   ========================================================================== */
+:root{
+  --widget-accent: var(--accent); /* surchargeable par instance, jamais modifié globalement ici */
+}
+
+/* Tooltip au survol d'un point/barre : toujours sombre, même en thème clair
+   (convention standard en dataviz — un tooltip clair sur fond clair perd
+   le contraste). Ne dépend pas de [data-theme]. */
+:root{
+  --tooltip-bg: rgba(17,21,28,0.94);
+  --tooltip-ink: #FFFFFF;
+  --tooltip-radius: 6px;
+}
+
+/* Halo (glow) réservé à UN élément mis en avant (barre survolée, point actif) —
+   jamais appliqué à tout un graphique, sinon effet "néon" qui nuit à la lecture. */
+.glow{
+  filter: drop-shadow(0 0 8px var(--widget-accent));
+  opacity: 0.9;
+}
