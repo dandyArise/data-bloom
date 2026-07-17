@@ -13,6 +13,9 @@ export interface WidgetConfig {
   sort?: { by: 'label' | 'value'; direction: 'asc' | 'desc' };
   size: WidgetSize;
   colorScheme?: (label: string, index: number) => string;
+  legendPosition?: 'right' | 'bottom' | 'none';
+  legendDetail?: 'label' | 'value' | 'percentage' | 'value_percentage';
+  sliceLabel?: 'none' | 'label' | 'value' | 'percentage' | 'label_percentage';
 }
 
 export interface WidgetData {

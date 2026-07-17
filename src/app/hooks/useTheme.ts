@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { applyTheme, persistTheme, resolveInitialTheme, type ThemeMode } from '../theme';
+import { applyPalette, applyTheme, persistPalette, persistTheme, resolveInitialPalette, resolveInitialTheme, type ColorPalette, type ThemeMode } from '../theme';
 
 function readAppliedTheme(): ThemeMode {
   const appliedTheme = document.documentElement.dataset.theme;
@@ -8,15 +8,18 @@ function readAppliedTheme(): ThemeMode {
 
 export function useTheme() {
   const [theme, setTheme] = useState<ThemeMode>(readAppliedTheme);
+  const [palette, setPalette] = useState<ColorPalette>(resolveInitialPalette);
 
   useEffect(() => {
+    applyPalette(palette);
     applyTheme(theme);
     persistTheme(theme);
-  }, [theme]);
+    persistPalette(palette);
+  }, [palette, theme]);
 
   const toggleTheme = useCallback(() => {
     setTheme((currentTheme) => (currentTheme === 'dark' ? 'light' : 'dark'));
   }, []);
 
-  return { theme, toggleTheme };
+  return { theme, toggleTheme, palette, setPalette };
 }

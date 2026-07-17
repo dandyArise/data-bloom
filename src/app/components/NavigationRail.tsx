@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { ArrowDown, BarChart3, Check, ChevronDown, Copy, Database, FileJson, GripVertical, LayoutDashboard, LoaderCircle, Mic, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RefreshCcw, Search, Send, Settings, ShieldAlert, Sparkles, Table2, Trash2, X } from 'lucide-react';
+import { ArrowDown, BarChart3, Check, ChevronDown, Copy, Database, FileJson, GripVertical, LayoutDashboard, LoaderCircle, MessageSquare, Mic, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RefreshCcw, Search, Send, Settings, ShieldAlert, Sparkles, Table2, Trash2, X } from 'lucide-react';
 import { widgetLabels, type Conversation } from '../appState';
 import type { ApiSourceConfig } from '../apiSource';
 import { ChartWidgetBody } from './charts/ChartWidgetBody';
@@ -13,16 +13,24 @@ export function NavigationRail({
   viewMode,
   setViewMode,
   isChatOpen,
+  isConversationsOpen,
   isInspectorOpen,
+  isLmConfigOpen,
   onToggleChat,
+  onToggleConversations,
   onToggleInspector,
+  onToggleLmConfig,
 }: {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   isChatOpen: boolean;
+  isConversationsOpen: boolean;
   isInspectorOpen: boolean;
+  isLmConfigOpen: boolean;
   onToggleChat: () => void;
+  onToggleConversations: () => void;
   onToggleInspector: () => void;
+  onToggleLmConfig: () => void;
 }) {
   const items: { mode: ViewMode; label: string; icon: typeof LayoutDashboard }[] = [
     { mode: 'board', label: 'Board', icon: LayoutDashboard },
@@ -33,6 +41,10 @@ export function NavigationRail({
 
   return (
     <nav className="nav-rail" aria-label="Databloom views">
+      <button className={isConversationsOpen ? 'rail-button active' : 'rail-button'} type="button" title="Discussions" onClick={onToggleConversations} aria-pressed={isConversationsOpen}>
+        <MessageSquare size={23} />
+        <span>Discussions</span>
+      </button>
       <button className={isChatOpen ? 'rail-button active' : 'rail-button'} type="button" title="AI panel" onClick={onToggleChat} aria-pressed={isChatOpen}>
         {isChatOpen ? <PanelLeftClose size={23} /> : <PanelLeftOpen size={23} />}
         <span>AI</span>
@@ -57,6 +69,10 @@ export function NavigationRail({
           </button>
         );
       })}
+      <button className={isLmConfigOpen ? 'rail-button active' : 'rail-button'} type="button" title="Configuration LLM" onClick={onToggleLmConfig} aria-pressed={isLmConfigOpen}>
+        <Settings size={23} />
+        <span>LLM</span>
+      </button>
     </nav>
   );
 }

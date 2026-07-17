@@ -111,7 +111,7 @@ export function DatasetPanel({
                 <div className={qualityReport.ambiguousDateCount > 0 ? 'quality-metric warning' : 'quality-metric good'}><strong>{qualityReport.ambiguousDateCount}</strong><span>dates ambiguës</span></div>
               </div>
               {(qualityReport.duplicateRowCount > 0 || qualityReport.missingValueCount > 0) ? <div className="quality-actions">
-                {qualityReport.duplicateRowCount > 0 && <><button className="ghost-button" type="button" onClick={() => onReviewQualityIssue('duplicates')}>Voir les doublons</button><button className="danger-button" type="button" onClick={onRemoveDuplicateRows}>Dédupliquer</button></>}
+                {qualityReport.duplicateRowCount > 0 && <><button className="ghost-button" type="button" onClick={() => onReviewQualityIssue('duplicates')}>Voir les doublons</button><button className="ghost-button quality-fix-button" type="button" onClick={onRemoveDuplicateRows}>Retirer les doublons</button></>}
                 {qualityReport.missingValueCount > 0 && <button className="ghost-button" type="button" onClick={() => onReviewQualityIssue('missing')}>Voir les valeurs manquantes</button>}
               </div> : <div className="quality-clean"><CheckCircle2 size={18} /> Aucun problème détecté.</div>}
             </section>

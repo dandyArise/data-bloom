@@ -37,6 +37,9 @@ export type WidgetConfig = {
   thresholds?: WidgetThresholds;
   unit?: string;
   filterValue?: string;
+  legendPosition?: 'right' | 'bottom' | 'none';
+  legendDetail?: 'label' | 'value' | 'percentage' | 'value_percentage';
+  sliceLabel?: 'none' | 'label' | 'value' | 'percentage' | 'label_percentage';
 };
 
 export type Widget = {

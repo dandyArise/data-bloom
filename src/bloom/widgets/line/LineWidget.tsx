@@ -1,14 +1,43 @@
-import { useId } from 'react';
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { registerWidget } from '../../registry';
 import type { WidgetProps } from '../../types';
 import { canonicalRows, EmptyWidgetState, formatCompactNumber, formatNumber } from '../shared';
 
-const plot = { left: 48, right: 346, top: 12, bottom: 142 } as const;
+type ChartBounds = { width: number; height: number };
+
+function useChartBounds() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [bounds, setBounds] = useState<ChartBounds>({ width: 360, height: 170 });
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const update = () => {
+      const { width, height } = element.getBoundingClientRect();
+      if (width > 0 && height > 0) setBounds({ width: Math.round(width), height: Math.round(height) });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, bounds };
+}
 
 export function LineWidget({ data, config }: WidgetProps) {
   const gradientId = `bloom-line-area-${useId().replace(/:/g, '')}`;
+  const { ref, bounds } = useChartBounds();
   const entries = canonicalRows(data, config);
   if (entries.length === 0) return <EmptyWidgetState />;
+  const compact = bounds.width < 460;
+  const fontSize = Math.max(10, Math.min(13, bounds.width / 44));
+  const plot = {
+    left: compact ? 42 : 52,
+    right: Math.max(compact ? 12 : 18, bounds.width - (compact ? 12 : 18)),
+    top: 16,
+    bottom: Math.max(72, bounds.height - (compact ? 34 : 30)),
+  };
   const scale = buildScale(entries);
   const position = (value: number, index: number) => ({
     x: plot.left + (index / Math.max(entries.length - 1, 1)) * (plot.right - plot.left),
@@ -25,18 +54,20 @@ export function LineWidget({ data, config }: WidgetProps) {
     const date = parseDate(entry.label);
     if (date) years.add(date.getUTCFullYear());
   }
-  const calloutX = Math.max(plot.left, lastPosition.x - 51);
-  const calloutY = Math.max(plot.top, Math.min(lastPosition.y - 26, plot.bottom - 18));
+  const calloutText = formatCompactNumber(last.value);
+  const calloutWidth = Math.max(46, calloutText.length * (fontSize * 0.62) + 16);
+  const calloutX = Math.max(plot.left, Math.min(lastPosition.x - calloutWidth - 8, plot.right - calloutWidth));
+  const calloutY = Math.max(plot.top, Math.min(lastPosition.y - 24, plot.bottom - 20));
   return (
-    <div className="line-chart-wrap">
-      <svg className="line-chart" viewBox="0 0 360 170" role="img" aria-label={`${config.title}. Dernière valeur ${formatNumber(last.value)}.`}>
+    <div className="line-chart-wrap" ref={ref}>
+      <svg className="line-chart" viewBox={`0 0 ${bounds.width} ${bounds.height}`} role="img" aria-label={`${config.title}. Dernière valeur ${formatNumber(last.value)}.`} style={{ '--line-axis-font-size': `${fontSize}px` } as CSSProperties}>
         <defs><linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="var(--line-c)" stopOpacity="0.28" /><stop offset="100%" stopColor="var(--line-c)" stopOpacity="0.02" /></linearGradient></defs>
-        <g className="line-grid" aria-hidden="true">{scale.ticks.map((tick) => { const y = position(tick, 0).y; return <g key={tick}><line x1={plot.left} x2={plot.right} y1={y} y2={y} /><text x={plot.left - 8} y={y + 3} textAnchor="end">{formatCompactNumber(tick)}</text></g>; })}</g>
+        <g className="line-grid" aria-hidden="true">{scale.ticks.map((tick) => { const y = position(tick, 0).y; return <g key={tick}><line x1={plot.left} x2={plot.right} y1={y} y2={y} /><text x={plot.left - 8} y={y + fontSize * 0.35} textAnchor="end" fontSize={fontSize}>{formatCompactNumber(tick)}</text></g>; })}</g>
         <path className="line-area" d={area} fill={`url(#${gradientId})`} />
         <polyline className="line-series" points={polyline} fill="none" />
-        {entries.map((entry, index) => <circle className={`line-point${index === entries.length - 1 ? ' last' : ''}`} key={entry.label} cx={positions[index].x} cy={positions[index].y} r={index === entries.length - 1 ? 4 : 2.5}><title>{entry.label}: {formatNumber(entry.value)}</title></circle>)}
-        <g className="line-last-callout" aria-hidden="true"><rect x={calloutX} y={calloutY} width="44" height="18" rx="6" /><text x={calloutX + 22} y={calloutY + 12} textAnchor="middle">{formatCompactNumber(last.value)}</text></g>
-        <g className="line-x-axis" aria-hidden="true">{tickIndices.map((index) => <text key={entries[index].label} x={positions[index].x} y="163" textAnchor={index === 0 ? 'start' : index === entries.length - 1 ? 'end' : 'middle'}>{formatAxisLabel(entries[index].label, years.size > 1)}</text>)}</g>
+        {entries.map((entry, index) => <circle className={`line-point${index === entries.length - 1 ? ' last' : ''}`} key={entry.label} cx={positions[index].x} cy={positions[index].y} r={index === entries.length - 1 ? 5 : 3.5}><title>{entry.label}: {formatNumber(entry.value)}</title></circle>)}
+        <g className="line-last-callout" aria-hidden="true"><rect x={calloutX} y={calloutY} width={calloutWidth} height="20" rx="6" /><text x={calloutX + calloutWidth / 2} y={calloutY + 13.5} textAnchor="middle" fontSize={fontSize}>{calloutText}</text></g>
+        <g className="line-x-axis" aria-hidden="true">{tickIndices.map((index) => <text key={entries[index].label} x={positions[index].x} y={bounds.height - 9} textAnchor={index === 0 ? 'start' : index === entries.length - 1 ? 'end' : 'middle'} fontSize={fontSize}>{formatAxisLabel(entries[index].label, years.size > 1)}</text>)}</g>
       </svg>
     </div>
   );

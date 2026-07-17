@@ -43,7 +43,7 @@ const registryEntries: WidgetRegistryEntry[] = [
       : 0,
   },
   {
-    type: 'pie', label: 'Pie', requiresData: true, defaultSize: { w: 4, h: 4 },
+    type: 'pie', label: 'Pie', requiresData: true, defaultSize: { w: 5, h: 4 },
     detectRelevance: ({ shape }) => shape.categoricalFieldCount > 0 ? 32 : 0,
   },
   {

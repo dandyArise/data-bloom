@@ -1,47 +1,30 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { ArrowDown, BarChart3, Check, ChevronDown, Copy, Database, FileJson, GripVertical, LayoutDashboard, LoaderCircle, Mic, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RefreshCcw, Search, Send, Settings, ShieldAlert, Sparkles, Table2, Trash2, X } from 'lucide-react';
-import { widgetLabels, type Conversation } from '../appState';
+import { widgetLabels } from '../appState';
 import type { ApiSourceConfig } from '../apiSource';
 import { ChartWidgetBody } from './charts/ChartWidgetBody';
-import { ConversationManager } from './ConversationManager';
 import { DatasetPanel } from './DatasetPanel';
-import { LlmConfigPanel } from './LlmConfigPanel';
 import { WidgetCommandComposer } from './WidgetCommandComposer';
-import type { LmConfig, LmLogEntry } from '../lmStudio';
 import type { Aggregation, ChatMessage, Dataset, ViewMode, Widget, WidgetSort } from '../types';
 
 type ChatPanelMode = {
   generation: 'idle' | 'generating';
-  configuration: 'closed' | 'open';
-  connectionTest: 'idle' | 'testing';
   layout: 'standard' | 'wide';
 };
 
 export function ChatPanel({
-  conversations,
   activeConversationId,
-  activeConversationTitle,
-  onNewConversation,
-  onOpenConversation,
-  onRenameConversation,
-  onDeleteConversation,
   messages,
-  dataset,
+  llmDataset,
   datasets,
-  onSelectDataset,
+  onSelectLmDataset,
   pendingWidgets,
-  activeWidgetCount,
   prompt,
   setPrompt,
   onGenerate,
   onRetry,
   onClearHistory,
   mode,
-  lmConfig,
-  onUpdateLmConfig,
-  onToggleLmConfig,
-  onTestLmConnection,
-  lmLogs,
   onOpenGrid,
   onOpenData,
   assistantMode,
@@ -51,30 +34,18 @@ export function ChatPanel({
   onReject,
   onSelect,
 }: {
-  conversations: Conversation[];
   activeConversationId: string;
-  activeConversationTitle: string;
-  onNewConversation: () => void;
-  onOpenConversation: (id: string) => void;
-  onRenameConversation: (id: string, title: string) => void;
-  onDeleteConversation: (id: string) => void;
   messages: ChatMessage[];
-  dataset: Dataset;
+  llmDataset: Dataset;
   datasets: Dataset[];
-  onSelectDataset: (id: string) => void;
+  onSelectLmDataset: (id: string) => void;
   pendingWidgets: Widget[];
-  activeWidgetCount: number;
   prompt: string;
   setPrompt: (value: string) => void;
   onGenerate: (promptOverride?: string, options?: { datasetId?: string }) => Promise<void>;
   onRetry: () => void;
   onClearHistory: () => void;
   mode: ChatPanelMode;
-  lmConfig: LmConfig;
-  onUpdateLmConfig: (patch: Partial<LmConfig>) => void;
-  onToggleLmConfig: () => void;
-  onTestLmConnection: () => Promise<void>;
-  lmLogs: LmLogEntry[];
   onOpenGrid: () => void;
   onOpenData: () => void;
   assistantMode: 'Rapide' | 'Approfondi';
@@ -85,10 +56,7 @@ export function ChatPanel({
   onSelect: (id: string) => void;
 }) {
   const isGenerating = mode.generation === 'generating';
-  const isLmConfigOpen = mode.configuration === 'open';
-  const isTestingLm = mode.connectionTest === 'testing';
   const isWide = mode.layout === 'wide';
-  const canDeleteConversation = conversations.length > 1 || messages.length > 0 || activeWidgetCount > 0;
   const messagesRef = useRef<HTMLDivElement>(null);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const lastMessageId = messages[messages.length - 1]?.id;
@@ -149,30 +117,7 @@ export function ChatPanel({
           <strong>Databloom</strong>
           <span>{isGenerating ? 'Réponse en cours...' : 'Assistant data'}</span>
         </div>
-        <button className={isLmConfigOpen ? 'llm-config-trigger active' : 'llm-config-trigger'} type="button" title="Configurer le LLM" onClick={onToggleLmConfig} aria-pressed={isLmConfigOpen}>
-          <Settings size={15} />
-          LLM
-        </button>
       </section>
-      {isLmConfigOpen && (
-        <LlmConfigPanel
-          lmConfig={lmConfig}
-          onUpdateLmConfig={onUpdateLmConfig}
-          onTestLmConnection={onTestLmConnection}
-          isTestingLm={isTestingLm}
-          lmLogs={lmLogs}
-        />
-      )}
-      <ConversationManager
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        activeConversationTitle={activeConversationTitle}
-        canDeleteConversation={canDeleteConversation}
-        onNewConversation={onNewConversation}
-        onOpenConversation={onOpenConversation}
-        onRenameConversation={onRenameConversation}
-        onDeleteConversation={onDeleteConversation}
-      />
       <div className="chat-history-actions">
         <button className="ghost-button" type="button" onClick={onRetry} disabled={isGenerating || !messages.some((message) => message.role === 'user')}>
           <RefreshCcw size={15} />
@@ -185,8 +130,8 @@ export function ChatPanel({
       <button className="chat-dataset-summary" type="button" onClick={onOpenData}>
         <Database size={22} />
         <div>
-          <strong>{dataset.name}</strong>
-            <span>{dataset.fields.length === 0 ? 'Ajouter une source de données' : `${dataset.fields.length} colonnes · ${dataset.rows.length.toLocaleString('fr-FR')} lignes`}</span>
+          <strong>{llmDataset.name}</strong>
+            <span>{llmDataset.fields.length === 0 ? 'Ajouter une source de données' : `${llmDataset.fields.length} colonnes · ${llmDataset.rows.length.toLocaleString('fr-FR')} lignes`}</span>
         </div>
       </button>
       {datasets.length > 0 && (
@@ -196,10 +141,10 @@ export function ChatPanel({
             {datasets.map((item) => (
               <button
                 key={item.id}
-                className={item.id === dataset.id ? 'dataset-badge active' : 'dataset-badge'}
+                className={item.id === llmDataset.id ? 'dataset-badge active' : 'dataset-badge'}
                 type="button"
-                aria-pressed={item.id === dataset.id}
-                onClick={() => onSelectDataset(item.id)}
+                aria-pressed={item.id === llmDataset.id}
+                onClick={() => onSelectLmDataset(item.id)}
               >
                 {item.name}
               </button>

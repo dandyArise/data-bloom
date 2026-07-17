@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { Eye, EyeOff, KeyRound, LoaderCircle, Sparkles } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Eye, EyeOff, KeyRound, LoaderCircle, RefreshCw, Sparkles } from 'lucide-react';
 import type { LmConfig, LmLogEntry } from '../lmStudio';
 
 type LlmConfigPanelProps = {
   lmConfig: LmConfig;
   onUpdateLmConfig: (patch: Partial<LmConfig>) => void;
-  onTestLmConnection: () => Promise<void>;
+  onTestLmConnection: () => Promise<string[]>;
   isTestingLm: boolean;
   lmLogs: LmLogEntry[];
 };
@@ -18,6 +18,16 @@ export function LlmConfigPanel({
   lmLogs,
 }: LlmConfigPanelProps) {
   const [showApiKey, setShowApiKey] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+
+  const refreshModels = async () => {
+    const nextModels = await onTestLmConnection();
+    setModels(nextModels);
+  };
+
+  useEffect(() => {
+    void onTestLmConnection().then(setModels);
+  }, [onTestLmConnection]);
 
   return (
     <div className="llm-config-panel">
@@ -34,12 +44,17 @@ export function LlmConfigPanel({
         />
       </label>
       <label>
-        Modèle
-        <input
-          value={lmConfig.model}
-          placeholder="Nom exact du modèle chargé (obligatoire)"
-          onChange={(event) => onUpdateLmConfig({ model: event.target.value })}
-        />
+        Modèle chargé dans LM Studio
+        <div className="secret-input-row">
+          <select value={lmConfig.model} onChange={(event) => onUpdateLmConfig({ model: event.target.value })}>
+            {models.length === 0 && <option value="">Actualiser la liste des modèles</option>}
+            {models.map((model) => <option key={model} value={model}>{model}</option>)}
+          </select>
+          <button className="ghost-button icon-only" type="button" title="Actualiser les modèles" onClick={() => void refreshModels()} disabled={isTestingLm}>
+            {isTestingLm ? <LoaderCircle className="spin" size={20} /> : <RefreshCw size={20} />}
+          </button>
+        </div>
+        <small>Le premier modèle chargé est choisi automatiquement. Charge un autre modèle dans LM Studio, puis actualise cette liste.</small>
       </label>
       <label>
         API key
@@ -81,9 +96,9 @@ export function LlmConfigPanel({
         </label>
       </div>
       <div className="llm-config-actions">
-        <button className="primary-button full" type="button" onClick={() => void onTestLmConnection()} disabled={isTestingLm || !lmConfig.baseUrl.trim()}>
+        <button className="primary-button full" type="button" onClick={() => void refreshModels()} disabled={isTestingLm || !lmConfig.baseUrl.trim()}>
           {isTestingLm ? <LoaderCircle className="spin" size={20} /> : <Sparkles size={20} />}
-          Tester la connexion
+          Détecter les modèles chargés
         </button>
       </div>
       <div className="llm-log-panel">

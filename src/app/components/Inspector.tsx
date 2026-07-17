@@ -34,13 +34,14 @@ type InspectorWidgetSchema = {
   showMonitorTarget?: boolean;
   showHeatmapAxes?: boolean;
   limitLabel?: string;
+  showPieDisplay?: boolean;
 };
 const inspectorWidgetSchemas: Record<WidgetType, InspectorWidgetSchema> = {
   kpi: { showDimension: false, showMeasure: true, showAggregation: true, showLimitSort: false, showColumns: false },
   comparison: { showDimension: false, showMeasure: true, showAggregation: true, showLimitSort: false, showColumns: false },
   'kpi-group': { showDimension: false, showMeasure: false, showAggregation: true, showLimitSort: false, showColumns: true },
   bar: { showDimension: true, dimensionLabel: 'Axe X', showMeasure: true, showAggregation: true, showLimitSort: true, showColumns: false },
-  pie: { showDimension: true, dimensionLabel: 'Segment', showMeasure: true, showAggregation: true, showLimitSort: true, showColumns: false },
+  pie: { showDimension: true, dimensionLabel: 'Segment', showMeasure: true, showAggregation: true, showLimitSort: true, showColumns: false, showPieDisplay: true },
   line: { showDimension: true, dimensionLabel: 'Axe X', showMeasure: true, showAggregation: true, showLimitSort: false, showColumns: false },
   heatmap: { showDimension: false, showMeasure: true, showAggregation: true, showLimitSort: false, showColumns: false, showHeatmapAxes: true, showLimit: true, limitLabel: 'Catégories maximum par axe' },
   table: { showDimension: true, dimensionLabel: 'Regroupement (optionnel)', showMeasure: false, showAggregation: false, showLimitSort: true, showColumns: true },
@@ -288,6 +289,35 @@ function WidgetEditorModal({ widget, dataset, onUpdate, onClose }: { widget: Wid
           </select>
         </label>
       </div>
+      )}
+      {schema.showPieDisplay && (
+        <fieldset className="widget-editor-thresholds">
+          <legend>Affichage du pie</legend>
+          <label>Position de la légende
+            <select value={draft.config?.legendPosition ?? 'right'} onChange={(event) => updateConfig({ legendPosition: event.target.value as NonNullable<Widget['config']>['legendPosition'] })}>
+              <option value="right">À droite</option>
+              <option value="bottom">En bas</option>
+              <option value="none">Masquée</option>
+            </select>
+          </label>
+          <label>Contenu de la légende
+            <select value={draft.config?.legendDetail ?? 'value_percentage'} onChange={(event) => updateConfig({ legendDetail: event.target.value as NonNullable<Widget['config']>['legendDetail'] })}>
+              <option value="label">Libellé seul</option>
+              <option value="value">Libellé + valeur</option>
+              <option value="percentage">Libellé + pourcentage</option>
+              <option value="value_percentage">Libellé + valeur + pourcentage</option>
+            </select>
+          </label>
+          <label>Texte dans les parts
+            <select value={draft.config?.sliceLabel ?? 'label_percentage'} onChange={(event) => updateConfig({ sliceLabel: event.target.value as NonNullable<Widget['config']>['sliceLabel'] })}>
+              <option value="percentage">Pourcentage</option>
+              <option value="value">Valeur</option>
+              <option value="label">Libellé</option>
+              <option value="label_percentage">Libellé + pourcentage</option>
+              <option value="none">Aucun</option>
+            </select>
+          </label>
+        </fieldset>
       )}
           </form>
           <section className="widget-editor-preview" aria-label="Aperçu en direct">

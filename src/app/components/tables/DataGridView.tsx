@@ -1,16 +1,179 @@
-import { useMemo, useState, type CSSProperties } from 'react';
-import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import type { Dataset } from '../../types';
 
-type Props = { dataset: Dataset; qualityFilter: 'duplicates' | 'missing' | null; onClearQualityFilter: () => void };
+const PAGE_SIZE = 50;
+
+type Props = {
+  dataset: Dataset;
+  qualityFilter: 'duplicates' | 'missing' | null;
+  onClearQualityFilter: () => void;
+};
+
 export function DataGridView({ dataset, qualityFilter, onClearQualityFilter }: Props) {
-  const [filters, setFilters] = useState<Record<string, string>>({}); const [globalFilter, setGlobalFilter] = useState(''); const [isSchemaOpen, setIsSchemaOpen] = useState(false); const [showColumnFilters, setShowColumnFilters] = useState(false); const [sortState, setSortState] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
-  const numericFields = useMemo(() => new Set(dataset.fields.filter((field) => isNumericField(dataset, field.name)).map((field) => field.name)), [dataset]);
-  const qualityRows = useMemo(() => { if (!qualityFilter) return dataset.rows; if (qualityFilter === 'missing') return dataset.rows.filter((row) => dataset.fields.some((field) => isEmpty(row[field.name]))); const seen = new Set<string>(); return dataset.rows.filter((row) => { const key = JSON.stringify(dataset.fields.map((field) => String(row[field.name] ?? '').trim().toLowerCase())); if (seen.has(key)) return true; seen.add(key); return false; }); }, [dataset.fields, dataset.rows, qualityFilter]);
-  const rows = useMemo(() => { const query = globalFilter.trim().toLowerCase(); const active = Object.entries(filters).map(([field, value]) => [field, value.trim().toLowerCase()] as const).filter(([, value]) => value); const result = qualityRows.filter((row) => (!query || dataset.fields.some((field) => searchValue(row[field.name]).includes(query))) && active.every(([field, value]) => searchValue(row[field]).includes(value))); return sortState ? [...result].sort((a, b) => compare(a[sortState.field], b[sortState.field], sortState.direction)) : result; }, [dataset.fields, filters, globalFilter, qualityRows, sortState]);
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [globalFilter, setGlobalFilter] = useState('');
+  const [isSchemaOpen, setIsSchemaOpen] = useState(false);
+  const [showColumnFilters, setShowColumnFilters] = useState(false);
+  const [sortState, setSortState] = useState<{ field: string; direction: 'asc' | 'desc' } | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+
+  useEffect(() => setPageIndex(0), [dataset.id, qualityFilter]);
+
+  const numericFields = useMemo(
+    () => new Set(dataset.fields.filter((field) => isNumericField(dataset, field.name)).map((field) => field.name)),
+    [dataset],
+  );
+  const qualityRows = useMemo(() => {
+    if (!qualityFilter) return dataset.rows;
+    if (qualityFilter === 'missing') {
+      return dataset.rows.filter((row) => dataset.fields.some((field) => isEmpty(row[field.name])));
+    }
+    const seen = new Set<string>();
+    return dataset.rows.filter((row) => {
+      const key = JSON.stringify(dataset.fields.map((field) => String(row[field.name] ?? '').trim().toLowerCase()));
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+  }, [dataset.fields, dataset.rows, qualityFilter]);
+  const rows = useMemo(() => {
+    const query = globalFilter.trim().toLowerCase();
+    const active = Object.entries(filters)
+      .map(([field, value]) => [field, value.trim().toLowerCase()] as const)
+      .filter(([, value]) => value);
+    const result = qualityRows.filter(
+      (row) =>
+        (!query || dataset.fields.some((field) => searchValue(row[field.name]).includes(query))) &&
+        active.every(([field, value]) => searchValue(row[field]).includes(value)),
+    );
+    return sortState
+      ? [...result].sort((a, b) => compare(a[sortState.field], b[sortState.field], sortState.direction))
+      : result;
+  }, [dataset.fields, filters, globalFilter, qualityRows, sortState]);
+
   const filterCount = Object.values(filters).filter((value) => value.trim()).length + (globalFilter.trim() ? 1 : 0);
-  if (!dataset.fields.length) return <section className="grid-view"><p className="empty-state">Aucun dataset chargé.</p></section>;
-  const toggleSort = (field: string) => setSortState((current) => current?.field !== field ? { field, direction: 'asc' } : current.direction === 'asc' ? { field, direction: 'desc' } : null);
-  return <section className="grid-view"><div className="grid-toolbar"><div><strong>{dataset.name}</strong><span>{rows.length.toLocaleString('fr-FR')} / {dataset.rows.length.toLocaleString('fr-FR')} lignes · {dataset.fields.length} colonnes</span></div><div className="grid-search"><Search size={15} /><input aria-label="Recherche globale" value={globalFilter} placeholder="Rechercher segment, pays, produit..." onChange={(event) => setGlobalFilter(event.target.value)} /></div><button className={showColumnFilters ? 'ghost-button active-mode' : 'ghost-button'} type="button" onClick={() => setShowColumnFilters((current) => !current)} aria-pressed={showColumnFilters}><SlidersHorizontal size={15} />Filtres colonnes</button>{filterCount > 0 && <button className="ghost-button" type="button" onClick={() => { setFilters({}); setGlobalFilter(''); }}><X size={15} />Effacer {filterCount} filtre{filterCount > 1 ? 's' : ''}</button>}</div>{qualityFilter && <div className="grid-quality-filter"><span>{qualityFilter === 'duplicates' ? 'Affichage des lignes dupliquées' : 'Affichage des lignes avec valeurs manquantes'}</span><button className="ghost-button" type="button" onClick={onClearQualityFilter}>Afficher toutes les lignes</button></div>}<div className={isSchemaOpen ? 'schema-box open' : 'schema-box'}><button className="schema-toggle" type="button" onClick={() => setIsSchemaOpen((current) => !current)} aria-expanded={isSchemaOpen}><span><strong>{dataset.fields.length} colonnes</strong><small>{dataset.fields.slice(0, 5).map((field) => field.name).join(', ')}{dataset.fields.length > 5 ? '...' : ''}</small></span><ChevronDown size={16} /></button>{isSchemaOpen && <div className="field-strip">{dataset.fields.map((field) => <span key={field.name}>{field.name}<small>{field.type}</small></span>)}</div>}</div><div className="grid-table-wrap"><table><thead><tr className="grid-header-row">{dataset.fields.map((field) => <th key={field.name} className={`${numericFields.has(field.name) ? 'num' : ''} ${stickyClass(dataset, field.name)}`}><button type="button" onClick={() => toggleSort(field.name)} aria-label={`Trier ${field.name}`}><span>{field.name}</span><small>{field.type}</small><em>{sortState?.field === field.name ? sortState.direction === 'asc' ? '↑' : '↓' : '↕'}</em></button></th>)}</tr>{showColumnFilters && <tr className="grid-filter-row">{dataset.fields.map((field) => <th key={field.name} className={`${numericFields.has(field.name) ? 'num' : ''} ${stickyClass(dataset, field.name)}`}><input aria-label={`Filtrer ${field.name}`} value={filters[field.name] ?? ''} placeholder="Filtrer..." onChange={(event) => setFilters((current) => ({ ...current, [field.name]: event.target.value }))} /></th>)}</tr>}</thead><tbody>{rows.length === 0 ? <tr><td className="grid-empty-cell" colSpan={dataset.fields.length}>Aucune ligne ne correspond aux filtres.</td></tr> : rows.map((row, index) => <tr key={`${dataset.id}-row-${index}`} style={{ '--segment-color': chartColor(String(row.Segment ?? row.segment ?? ''), 0, 'segment') } as CSSProperties}>{dataset.fields.map((field) => <td key={field.name} className={`${numericFields.has(field.name) ? 'num' : ''} ${profitClass(field.name, row[field.name])} ${stickyClass(dataset, field.name)} ${isEmpty(row[field.name]) ? 'empty' : ''}`}>{field.name.toLowerCase() === 'segment' ? <span className="segment-cell"><span className="segment-dot" />{formatValue(row[field.name])}</span> : formatValue(row[field.name], field.name)}</td>)}</tr>)}</tbody></table></div></section>;
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const safePageIndex = Math.min(pageIndex, pageCount - 1);
+  const firstRowIndex = safePageIndex * PAGE_SIZE;
+  const visibleRows = rows.slice(firstRowIndex, firstRowIndex + PAGE_SIZE);
+
+  if (!dataset.fields.length) {
+    return <section className="grid-view"><p className="empty-state">Aucun dataset chargé.</p></section>;
+  }
+
+  const toggleSort = (field: string) => {
+    setPageIndex(0);
+    setSortState((current) =>
+      current?.field !== field
+        ? { field, direction: 'asc' }
+        : current.direction === 'asc'
+          ? { field, direction: 'desc' }
+          : null,
+    );
+  };
+
+  return (
+    <section className="grid-view">
+      <div className="grid-toolbar">
+        <div>
+          <strong>{dataset.name}</strong>
+          <span>{rows.length.toLocaleString('fr-FR')} / {dataset.rows.length.toLocaleString('fr-FR')} lignes · {dataset.fields.length} colonnes</span>
+        </div>
+        <div className="grid-search">
+          <Search size={15} />
+          <input
+            aria-label="Recherche globale"
+            value={globalFilter}
+            placeholder="Rechercher segment, pays, produit..."
+            onChange={(event) => { setGlobalFilter(event.target.value); setPageIndex(0); }}
+          />
+        </div>
+        <button className={showColumnFilters ? 'ghost-button active-mode' : 'ghost-button'} type="button" onClick={() => setShowColumnFilters((current) => !current)} aria-pressed={showColumnFilters}>
+          <SlidersHorizontal size={15} />Filtres colonnes
+        </button>
+        {filterCount > 0 && (
+          <button className="ghost-button" type="button" onClick={() => { setFilters({}); setGlobalFilter(''); setPageIndex(0); }}>
+            <X size={15} />Effacer {filterCount} filtre{filterCount > 1 ? 's' : ''}
+          </button>
+        )}
+      </div>
+      {qualityFilter && (
+        <div className="grid-quality-filter">
+          <span>{qualityFilter === 'duplicates' ? 'Affichage des lignes dupliquées' : 'Affichage des lignes avec valeurs manquantes'}</span>
+          <button className="ghost-button" type="button" onClick={onClearQualityFilter}>Afficher toutes les lignes</button>
+        </div>
+      )}
+      <div className={isSchemaOpen ? 'schema-box open' : 'schema-box'}>
+        <button className="schema-toggle" type="button" onClick={() => setIsSchemaOpen((current) => !current)} aria-expanded={isSchemaOpen}>
+          <span><strong>{dataset.fields.length} colonnes</strong><small>{dataset.fields.slice(0, 5).map((field) => field.name).join(', ')}{dataset.fields.length > 5 ? '...' : ''}</small></span>
+          <ChevronDown size={16} />
+        </button>
+        {isSchemaOpen && <div className="field-strip">{dataset.fields.map((field) => <span key={field.name}>{field.name}<small>{field.type}</small></span>)}</div>}
+      </div>
+      <div className="grid-table-wrap">
+        <table>
+          <thead>
+            <tr className="grid-header-row">
+              {dataset.fields.map((field) => (
+                <th key={field.name} className={`${numericFields.has(field.name) ? 'num' : ''} ${stickyClass(dataset, field.name)}`}>
+                  <button type="button" onClick={() => toggleSort(field.name)} aria-label={`Trier ${field.name}`}>
+                    <span>{field.name}</span><small>{field.type}</small><em>{sortState?.field === field.name ? sortState.direction === 'asc' ? '↑' : '↓' : '↕'}</em>
+                  </button>
+                </th>
+              ))}
+            </tr>
+            {showColumnFilters && (
+              <tr className="grid-filter-row">
+                {dataset.fields.map((field) => (
+                  <th key={field.name} className={`${numericFields.has(field.name) ? 'num' : ''} ${stickyClass(dataset, field.name)}`}>
+                    <input
+                      aria-label={`Filtrer ${field.name}`}
+                      value={filters[field.name] ?? ''}
+                      placeholder="Filtrer..."
+                      onChange={(event) => { setFilters((current) => ({ ...current, [field.name]: event.target.value })); setPageIndex(0); }}
+                    />
+                  </th>
+                ))}
+              </tr>
+            )}
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td className="grid-empty-cell" colSpan={dataset.fields.length}>Aucune ligne ne correspond aux filtres.</td></tr>
+            ) : visibleRows.map((row, index) => (
+              <tr key={`${dataset.id}-row-${firstRowIndex + index}`} style={{ '--segment-color': chartColor(String(row.Segment ?? row.segment ?? ''), 0, 'segment') } as CSSProperties}>
+                {dataset.fields.map((field) => (
+                  <td key={field.name} className={`${numericFields.has(field.name) ? 'num' : ''} ${profitClass(field.name, row[field.name])} ${stickyClass(dataset, field.name)} ${isEmpty(row[field.name]) ? 'empty' : ''}`}>
+                    {field.name.toLowerCase() === 'segment'
+                      ? <span className="segment-cell"><span className="segment-dot" />{formatValue(row[field.name])}</span>
+                      : formatValue(row[field.name], field.name)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <nav className="grid-pagination" aria-label="Pagination de la grille">
+        <span>{rows.length === 0 ? '0 ligne' : `Lignes ${(firstRowIndex + 1).toLocaleString('fr-FR')}–${Math.min(firstRowIndex + PAGE_SIZE, rows.length).toLocaleString('fr-FR')} sur ${rows.length.toLocaleString('fr-FR')}`}</span>
+        <div>
+          <button type="button" aria-label="Page précédente" onClick={() => setPageIndex((current) => Math.max(0, current - 1))} disabled={safePageIndex === 0}><ChevronLeft size={18} /></button>
+          <strong>Page {safePageIndex + 1} / {pageCount}</strong>
+          <button type="button" aria-label="Page suivante" onClick={() => setPageIndex((current) => Math.min(pageCount - 1, current + 1))} disabled={safePageIndex >= pageCount - 1}><ChevronRight size={18} /></button>
+        </div>
+      </nav>
+    </section>
+  );
 }
-function searchValue(value: string | number | undefined) { return String(value ?? '').toLowerCase(); } function isEmpty(value: string | number | undefined) { return value === undefined || value === ''; } function parseNumber(value: string | number | undefined) { if (typeof value === 'number' && Number.isFinite(value)) return value; if (typeof value !== 'string') return null; const parsed = Number(value.replace(/\s/g, '').replace(/[€$£]/g, '').replace(/,/g, '').replace('%', '').trim()); return Number.isFinite(parsed) ? parsed : null; } function currencyField(name = '') { return /price|sales|discount|cogs|profit|revenue|cost|gross|amount|marge|margin/i.test(name); } function isNumericField(dataset: Dataset, name: string) { const field = dataset.fields.find((item) => item.name === name); if (field?.type === 'number') return true; const sample = dataset.rows.slice(0, 40).map((row) => row[name]).filter((value) => value !== '' && value != null); return sample.length ? sample.filter((value) => parseNumber(value) !== null).length / sample.length >= .7 : Boolean(field && currencyField(field.name)); } function compare(a: string | number | undefined, b: string | number | undefined, direction: 'asc' | 'desc') { const aNumber = parseNumber(a); const bNumber = parseNumber(b); const multiplier = direction === 'asc' ? 1 : -1; return aNumber !== null && bNumber !== null ? (aNumber - bNumber) * multiplier : String(a ?? '').localeCompare(String(b ?? ''), 'fr') * multiplier; } function stickyClass(dataset: Dataset, name: string) { const index = dataset.fields.findIndex((field) => field.name === name); return index === 0 ? 'sticky-col sticky-col-first' : index === 1 ? 'sticky-col sticky-col-second' : ''; } function profitClass(name: string, value: string | number | undefined) { const parsed = parseNumber(value); return /profit|marge|margin/i.test(name) && parsed !== null ? parsed >= 0 ? 'profit-pos' : 'profit-neg' : ''; } function formatValue(value: string | number | undefined, name = '') { if (isEmpty(value)) return '—'; const parsed = parseNumber(value); if (parsed !== null && currencyField(name)) return parsed.toLocaleString('fr-FR', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }); return typeof value === 'number' ? value.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : value; } function chartColor(label: string, index = 0, group = '') { const key = label.toLowerCase(); if (group.includes('segment')) { if (key.includes('government')) return 'var(--seg-government)'; if (key.includes('midmarket')) return 'var(--seg-midmarket)'; if (key.includes('channel')) return 'var(--seg-channel)'; if (key.includes('enterprise')) return 'var(--seg-enterprise)'; if (key.includes('small')) return 'var(--seg-small-biz)'; } return ['var(--accent)', 'var(--country-c)', 'var(--line-c)'][index % 3]; }
+
+function searchValue(value: string | number | undefined) { return String(value ?? '').toLowerCase(); }
+function isEmpty(value: string | number | undefined) { return value === undefined || value === ''; }
+function parseNumber(value: string | number | undefined) { if (typeof value === 'number' && Number.isFinite(value)) return value; if (typeof value !== 'string') return null; const parsed = Number(value.replace(/\s/g, '').replace(/[€$£]/g, '').replace(/,/g, '').replace('%', '').trim()); return Number.isFinite(parsed) ? parsed : null; }
+function currencyField(name = '') { return /price|sales|discount|cogs|profit|revenue|cost|gross|amount|marge|margin/i.test(name); }
+function isNumericField(dataset: Dataset, name: string) { const field = dataset.fields.find((item) => item.name === name); if (field?.type === 'number') return true; const sample = dataset.rows.slice(0, 40).map((row) => row[name]).filter((value) => value !== '' && value != null); return sample.length ? sample.filter((value) => parseNumber(value) !== null).length / sample.length >= .7 : Boolean(field && currencyField(field.name)); }
+function compare(a: string | number | undefined, b: string | number | undefined, direction: 'asc' | 'desc') { const aNumber = parseNumber(a); const bNumber = parseNumber(b); const multiplier = direction === 'asc' ? 1 : -1; return aNumber !== null && bNumber !== null ? (aNumber - bNumber) * multiplier : String(a ?? '').localeCompare(String(b ?? ''), 'fr') * multiplier; }
+function stickyClass(dataset: Dataset, name: string) { const index = dataset.fields.findIndex((field) => field.name === name); return index === 0 ? 'sticky-col sticky-col-first' : index === 1 ? 'sticky-col sticky-col-second' : ''; }
+function profitClass(name: string, value: string | number | undefined) { const parsed = parseNumber(value); return /profit|marge|margin/i.test(name) && parsed !== null ? parsed >= 0 ? 'profit-pos' : 'profit-neg' : ''; }
+function formatValue(value: string | number | undefined, name = '') { if (isEmpty(value)) return '—'; const parsed = parseNumber(value); if (parsed !== null && currencyField(name)) return parsed.toLocaleString('fr-FR', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }); return typeof value === 'number' ? value.toLocaleString('fr-FR', { maximumFractionDigits: 2 }) : value; }
+function chartColor(label: string, index = 0, group = '') { const key = label.toLowerCase(); if (group.includes('segment')) { if (key.includes('government')) return 'var(--seg-government)'; if (key.includes('midmarket')) return 'var(--seg-midmarket)'; if (key.includes('channel')) return 'var(--seg-channel)'; if (key.includes('enterprise')) return 'var(--seg-enterprise)'; if (key.includes('small')) return 'var(--seg-small-biz)'; } return ['var(--accent)', 'var(--country-c)', 'var(--line-c)'][index % 3]; }

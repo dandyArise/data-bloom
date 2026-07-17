@@ -74,6 +74,9 @@ const commonConfig = (widget: Widget, dataset: Dataset, type = widget.type): Blo
     sort: mapSort(source.sort),
     size: mapSize(widget),
     colorScheme: (label, index) => getCategoricalColor(label, index, source.groupBy ?? source.xField, source.yField ?? widget.field),
+    legendPosition: source.legendPosition,
+    legendDetail: source.legendDetail,
+    sliceLabel: source.sliceLabel,
   };
 };
 

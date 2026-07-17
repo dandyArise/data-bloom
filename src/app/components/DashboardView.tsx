@@ -42,7 +42,6 @@ export function StageHeader({
 
 export function BoardCanvas({
   widgets,
-  dataset,
   datasets,
   selectedId,
   onSelect,
@@ -52,7 +51,6 @@ export function BoardCanvas({
   onReject,
 }: {
   widgets: Widget[];
-  dataset: Dataset;
   datasets: Dataset[];
   selectedId: string;
   onSelect: (id: string) => void;
@@ -68,7 +66,7 @@ export function BoardCanvas({
         <WidgetCard
           key={widget.id}
           widget={widget}
-          dataset={datasets.find((item) => item.id === widget.datasetId) ?? dataset}
+          dataset={datasets.find((item) => item.id === widget.datasetId)}
           selected={widget.id === selectedId}
           onSelect={onSelect}
           onUpdate={onUpdate}
@@ -92,7 +90,7 @@ function WidgetCard({
   onReject,
 }: {
   widget: Widget;
-  dataset: Dataset;
+  dataset?: Dataset;
   selected: boolean;
   onSelect: (id: string) => void;
   onUpdate: (id: string, patch: Partial<Widget>) => void;
@@ -101,7 +99,7 @@ function WidgetCard({
   onReject: (id: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
-  const displayTitle = getWidgetDisplayTitle(widget, dataset);
+  const displayTitle = dataset ? getWidgetDisplayTitle(widget, dataset) : widget.title;
   const startDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -178,7 +176,13 @@ function WidgetCard({
           </button>
         </div>
       </div>
-      <ChartWidgetBody widget={widget} dataset={dataset} />
+      {dataset ? (
+        <ChartWidgetBody widget={widget} dataset={dataset} />
+      ) : (
+        <div className="widget-error" role="alert">
+          Dataset introuvable pour ce widget. Sa source n'a pas été remplacée automatiquement.
+        </div>
+      )}
       {widget.status === 'pending' && (
         <div className="inline-actions">
           <button

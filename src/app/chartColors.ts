@@ -4,23 +4,18 @@ export type ThresholdSeverity = 'healthy' | 'warning' | 'critical';
 export type ServiceStatus = 'up' | 'degraded' | 'down' | 'unknown';
 
 const categoricalPalette = [
-  'var(--accent)',
+  'var(--seg-channel)',
   'var(--country-c)',
   'var(--line-c)',
-  'var(--seg-channel)',
   'var(--seg-enterprise)',
+  'var(--seg-government)',
+  'var(--seg-midmarket)',
   'var(--seg-small-biz)',
-  'var(--neg)',
 ];
 
-export function getCategoricalColor(label: string, index = 0, groupField = '', valueField = '') {
+export function getCategoricalColor(label: string, index = 0, groupField = '', _valueField = '') {
   const groupKey = groupField.toLowerCase();
-  const valueKey = valueField.toLowerCase();
   const labelKey = label.toLowerCase();
-
-  if (/profit|marge|margin/.test(valueKey)) return 'var(--pos)';
-  if (/discount/.test(valueKey)) return 'var(--neg)';
-  if (/sales|revenue|gross|units/.test(valueKey) && !/segment/.test(groupKey)) return 'var(--country-c)';
 
   if (/segment/.test(groupKey)) {
     if (labelKey.includes('government')) return 'var(--seg-government)';
@@ -30,6 +25,8 @@ export function getCategoricalColor(label: string, index = 0, groupField = '', v
     if (labelKey.includes('small business') || labelKey.includes('small')) return 'var(--seg-small-biz)';
   }
 
+  // Chaque catégorie reçoit une teinte stable de la palette active. Les
+  // couleurs sémantiques restent réservées aux états (positif, alerte, erreur).
   return categoricalPalette[index % categoricalPalette.length];
 }
 

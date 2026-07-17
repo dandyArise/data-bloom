@@ -160,14 +160,19 @@ export const analyzeDatasetQuality = (dataset: Dataset): DataQualityReport => {
     issues.push(createIssue('ambiguous-dates', 'warning', 'Dates ambiguës', `${ambiguousDateCount} date(s) utilisent un format jour/mois difficile à confirmer automatiquement.`));
   }
 
-  const score = clampScore(
+  // Les pénalités doivent refléter une proportion de données concernées, jamais
+  // le volume brut : un fichier de plusieurs milliers de lignes ne doit pas
+  // tomber mécaniquement à 0/100 parce qu'il contient quelques cellules vides.
+  const nonEmptyRowCount = Math.max(0, rows.length - emptyRowCount);
+  const cellCount = Math.max(1, rows.length * Math.max(1, fields.length));
+  const score = fields.length === 0 || rows.length === 0 ? 0 : clampScore(
     100
     - invalidColumnCount * 12
     - duplicateColumnNames.size * 10
-    - duplicateRowCount * 3
-    - emptyRowCount * 2
-    - Math.min(25, missingValueCount / Math.max(1, fields.length))
-    - ambiguousDateCount * 2,
+    - (duplicateRowCount / Math.max(1, nonEmptyRowCount)) * 28
+    - (emptyRowCount / Math.max(1, rows.length)) * 15
+    - (missingValueCount / cellCount) * 32
+    - (ambiguousDateCount / Math.max(1, rows.length)) * 15,
   );
 
   return {

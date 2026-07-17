@@ -44,9 +44,8 @@ export function DataSourcesView({
     <section className="data-sources-view">
       <div className="data-sources-hero">
         <div>
-          <span>Sources de données</span>
-          <h2>Importer, choisir et contrôler les datasets</h2>
-          <p>Centralise ici le chargement Excel/CSV, la sélection du dataset actif, la qualité data et l’aperçu avant analyse.</p>
+          <h1>Sources de données</h1>
+          <p>Importer, choisir et contrôler les datasets.</p>
         </div>
       </div>
       <div className="data-sources-panel">

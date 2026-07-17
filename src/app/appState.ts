@@ -18,8 +18,10 @@ export type StateValue<T> = T | ((current: T) => T);
 export type Conversation = {
   id: string;
   title: string;
-  /** Dataset currently selected in this conversation. */
+  /** Dataset currently selected in the data workspace. */
   datasetId: string;
+  /** Dataset used as context for the next LLM request. */
+  llmDatasetId: DatasetId;
   /** Explicit foreign-key links to every dataset available to this conversation. */
   datasetIds: DatasetId[];
   messages: ChatMessage[];
@@ -55,6 +57,7 @@ export const createConversation = (datasetId = '', title = 'Nouvelle discussion'
     id: makeId('conv'),
     title,
     datasetId,
+    llmDatasetId: datasetId,
     datasetIds: datasetId ? [datasetId] : [],
     messages: [],
     widgets: [],
@@ -106,6 +109,7 @@ const createLegacyConversation = (state: Partial<PersistedState>, activeDatasetI
     id: 'conversation-main',
     title: firstUserMessage ? firstUserMessage.slice(0, 42) : 'Discussion locale',
     datasetId: activeDatasetId,
+    llmDatasetId: activeDatasetId,
     datasetIds: activeDatasetId ? [activeDatasetId] : [],
     messages: state.messages ?? [],
     widgets: state.widgets ?? [],
@@ -144,6 +148,7 @@ export const loadState = (): PersistedState => {
       const linkedDatasetCandidates = [
         ...(conversation.datasetIds ?? []),
         conversation.datasetId,
+        conversation.llmDatasetId,
         ...conversation.messages.map((message) => message.datasetId ?? ''),
         ...widgets.map((widget) => widget.datasetId ?? ''),
       ];
@@ -153,10 +158,12 @@ export const loadState = (): PersistedState => {
       }
       const linkedDatasetIds = Array.from(linkedDatasetIdSet);
       const selectedDatasetId = remapDatasetId(conversation.datasetId);
+      const selectedLmDatasetId = remapDatasetId(conversation.llmDatasetId ?? conversation.datasetId);
 
       return {
         ...conversation,
         datasetId: linkedDatasetIds.includes(selectedDatasetId) ? selectedDatasetId : linkedDatasetIds[0] ?? '',
+        llmDatasetId: linkedDatasetIds.includes(selectedLmDatasetId) ? selectedLmDatasetId : linkedDatasetIds[0] ?? '',
         datasetIds: linkedDatasetIds,
         messages: conversation.messages.map((message) => ({ ...message, datasetId: remapDatasetId(message.datasetId) || undefined })),
         widgets,

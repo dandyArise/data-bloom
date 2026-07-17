@@ -80,6 +80,10 @@ export const defaultLmConfig: LmConfig = {
 const widgetTypes = new Set<WidgetType>(widgetRegistry.keys());
 const aggregations = new Set<Aggregation>(['sum', 'avg', 'count', 'rate']);
 const widgetSorts = new Set(['label_asc', 'label_desc', 'value_asc', 'value_desc']);
+const maxContextFields = 40;
+const maxContextRows = 6;
+const maxContextRowFields = 16;
+const completionTimeoutMs = 120000;
 const analysisRequestPattern = /\b(analyse|analyser|analyse specifique|pourquoi|compare|comparaison|evolution|tendance|distribution|detaille|details)\b/i;
 const widgetRequestPattern = /\b(widget|graph|chart|histogramme|camembert|courbe|ligne|kpi|comparaison|comparison|note|annotation|table|tableau|dashboard|visualis|monitoring|supervision|latence|ping|dns|uptime|disponibil)/i;
 const multiSourceRequestPattern = /\b(multi[ -]?source|plusieurs sources|plusieurs datasets|deux sources|crois[ée]es? les sources)\b/i;
@@ -88,7 +92,9 @@ const widgetClaimPattern = /(?:j['’]ai|nous avons|les widgets?).{0,60}(?:ajout
 const buildDatasetContext = (dataset: Dataset, includeRows: boolean) => {
   const profileRows = dataset.rows.slice(0, 100);
   const profiles = profileDataset(dataset);
+  const profilesByName = new Map(profiles.map((profile) => [profile.name, profile]));
   const { profile: domainProfile, recommendations } = getWidgetRecommendations(dataset);
+  const contextFields = dataset.fields.slice(0, maxContextFields);
 
   return {
     id: dataset.id,
@@ -96,12 +102,12 @@ const buildDatasetContext = (dataset: Dataset, includeRows: boolean) => {
     rowCount: dataset.rows.length,
     domain: {
       primary: domainProfile.primaryDomain,
-      ranked: domainProfile.rankedDomains.slice(0, 3),
-      signals: domainProfile.matchedSignals.slice(0, 12),
+      ranked: domainProfile.rankedDomains.slice(0, 2),
+      signals: domainProfile.matchedSignals.slice(0, 6),
       shape: domainProfile.shape,
     },
-    recommendedWidgetTypes: recommendations.map((recommendation) => recommendation.type),
-    fields: dataset.fields.map((field) => {
+    recommendedWidgetTypes: recommendations.slice(0, 8).map((recommendation) => recommendation.type),
+    fields: contextFields.map((field) => {
       const distinctValues = new Set<string>();
       const numericValues: number[] = [];
       for (const row of profileRows) {
@@ -111,14 +117,25 @@ const buildDatasetContext = (dataset: Dataset, includeRows: boolean) => {
         if (typeof value === 'number') numericValues.push(value);
       }
 
+      const profile = profilesByName.get(field.name);
       return {
-        ...field,
-        profile: profiles.find((profile) => profile.name === field.name),
-        exampleValues: Array.from(distinctValues),
+        name: field.name,
+        type: field.type,
+        kind: profile?.kind,
+        eligible: profile?.eligibleForWidgets,
+        fillRate: profile ? Math.round(profile.fillRate * 100) / 100 : undefined,
+        distinctCount: profile?.distinctCount,
+        ...(profile && !profile.eligibleForWidgets ? { exclusionReason: profile.reason.slice(0, 120) } : {}),
+        examples: Array.from(distinctValues).slice(0, 3),
         ...(numericValues.length > 0 ? { min: Math.min(...numericValues), max: Math.max(...numericValues) } : {}),
       };
     }),
-    ...(includeRows ? { sampleRows: dataset.rows.slice(0, 20) } : {}),
+    ...(dataset.fields.length > maxContextFields ? { omittedFieldCount: dataset.fields.length - maxContextFields } : {}),
+    ...(includeRows ? {
+      sampleRows: dataset.rows.slice(0, maxContextRows).map((row) => Object.fromEntries(
+        contextFields.slice(0, maxContextRowFields).map((field) => [field.name, row[field.name]]),
+      )),
+    } : {}),
   };
 };
 
@@ -134,12 +151,21 @@ const normalizeLmConfig = (config?: Partial<LmConfig>): LmConfig => ({
 
 const authHeaders = (config: LmConfig): Record<string, string> => (config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {});
 
-const requestWithTimeout = async (url: string, init?: RequestInit) => {
+const requestWithTimeout = async (url: string, init?: RequestInit, timeoutMs = 30000) => {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 30000);
+  let didTimeOut = false;
+  const timeout = window.setTimeout(() => {
+    didTimeOut = true;
+    controller.abort();
+  }, timeoutMs);
 
   try {
     return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (didTimeOut) {
+      throw new Error(`LM Studio n'a pas repondu en ${Math.round(timeoutMs / 1000)} secondes.`);
+    }
+    throw error;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -267,7 +293,7 @@ export const askLmStudioAssistant = async (
   const internalTools = inferInternalTools(prompt, includeRows);
   const resolvedConfig = normalizeLmConfig(config);
   const contextDatasets = multiSourceRequestPattern.test(prompt) ? availableDatasets : [dataset];
-  const requestTokenBudget = Math.max(resolvedConfig.maxTokens, 1800);
+  const requestTokenBudget = Math.min(Math.max(resolvedConfig.maxTokens, 600), 1400);
   createLog(
     logs,
     'info',
@@ -316,8 +342,7 @@ export const askLmStudioAssistant = async (
     'Si l utilisateur demande de surveiller un endpoint, DNS ou ping, retourne monitor avec name, url, probeType (http|dns|ping) et syncFrequency (manual|15m|1h|24h). Bloom cree ensuite cette supervision et son scheduler.',
   ].join('\n');
 
-  const userPrompt = JSON.stringify(
-    {
+  const userPrompt = JSON.stringify({
       request: prompt,
       internalTools,
       toolContract: {
@@ -329,7 +354,7 @@ export const askLmStudioAssistant = async (
       availableWidgetTypes: Array.from(widgetTypes),
       datasets: contextDatasets.map((item) => buildDatasetContext(item, includeRows)),
       currentBoard: {
-        widgets: widgets.map((widget) => ({
+        widgets: widgets.slice(-12).map((widget) => ({
           title: widget.title,
           type: widget.type,
           status: widget.status,
@@ -338,9 +363,13 @@ export const askLmStudioAssistant = async (
           config: widget.config,
         })),
       },
-    },
-    null,
-    2,
+    });
+  createLog(
+    logs,
+    'info',
+    'context_budget',
+    'Contexte compact prepare pour LM Studio.',
+    `${systemPrompt.length + userPrompt.length} caracteres avant le schema de reponse`,
   );
 
   const createBody = (modelName: string, responseFormat: unknown) =>
@@ -429,7 +458,7 @@ export const askLmStudioAssistant = async (
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(resolvedConfig) },
       body: createBody(modelName, responseFormat),
-    });
+    }, completionTimeoutMs);
 
     if (!chatResponse.ok) {
       const errorText = await chatResponse.text();
@@ -488,6 +517,8 @@ export const askLmStudioAssistant = async (
     && Boolean(error.body?.match(/response_format|json_schema|schema/i));
   const modelRejected = (error: unknown) => error instanceof LmRequestError
     && Boolean(error.body?.match(/model|not found|loaded|disponible|available/i));
+  const contextRejected = (error: unknown) => error instanceof LmRequestError
+    && Boolean(error.body?.match(/context size|context length|exceeds the available context|too many tokens/i));
 
   let lastError: unknown;
 
@@ -501,7 +532,7 @@ export const askLmStudioAssistant = async (
       lastError = error;
       createLog(logs, error instanceof LmRequestError ? 'warn' : 'error', 'json_schema', 'Echec json_schema.', error instanceof Error ? error.message : undefined);
 
-      if (!schemaUnsupported(error) && !modelRejected(error)) {
+      if (!schemaUnsupported(error) && !modelRejected(error) && !contextRejected(error)) {
         try {
           const completion = await requestCompletion(candidate, { type: 'text' }, 'text');
           const parsed = parseCompletion(completion.content);
@@ -527,6 +558,8 @@ export const askLmStudioAssistant = async (
     }
   }
 
-  const message = lastError instanceof Error ? lastError.message : 'Erreur inconnue pendant l appel LM Studio.';
+  const message = contextRejected(lastError)
+    ? 'Le contexte envoye depasse encore la fenetre du modele. Augmente la taille de contexte dans LM Studio ou utilise un modele avec une fenetre plus grande.'
+    : lastError instanceof Error ? lastError.message : 'Erreur inconnue pendant l appel LM Studio.';
   throw new LmAssistantError(message, logs);
 };

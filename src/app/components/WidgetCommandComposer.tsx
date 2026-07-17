@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
-import { ChevronDown, LoaderCircle, Mic, Send, ShieldAlert } from 'lucide-react';
-import { getWidgetSlashCommands, type WidgetSlashCommand } from '../widgetCommands';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, LoaderCircle, Mic, Send, ShieldAlert, X } from 'lucide-react';
+import { composeWidgetPrompt, getWidgetSlashCommands, parseSelectedWidgetCommands, type WidgetSlashCommand } from '../widgetCommands';
 
 export function WidgetCommandComposer({
   prompt,
@@ -22,17 +22,32 @@ export function WidgetCommandComposer({
   onStartVoiceInput: () => void;
 }) {
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const activeCommandRef = useRef<HTMLButtonElement>(null);
   const [activeCommandIndex, setActiveCommandIndex] = useState(0);
   const [isMenuDismissed, setIsMenuDismissed] = useState(false);
-  const slashQuery = prompt.startsWith('/') && !/\s/.test(prompt) ? prompt.slice(1) : null;
+  const selection = parseSelectedWidgetCommands(prompt);
+  const selectedCommands = selection.commands;
+  const composerText = selection.text;
+  const slashQuery = composerText.startsWith('/') && !/\s/.test(composerText) ? composerText.slice(1) : null;
   const commands = slashQuery === null ? [] : getWidgetSlashCommands(slashQuery);
   const isMenuOpen = !isGenerating && !isMenuDismissed && commands.length > 0;
   const selectedCommandIndex = Math.min(activeCommandIndex, Math.max(0, commands.length - 1));
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    activeCommandRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [isMenuOpen, selectedCommandIndex]);
+
   const selectCommand = (command: WidgetSlashCommand) => {
-    setPrompt(`${command.command} `);
+    const nextCommands = selectedCommands.some((item) => item.type === command.type) ? selectedCommands : [...selectedCommands, command];
+    setPrompt(composeWidgetPrompt(nextCommands, ''));
     setActiveCommandIndex(0);
     setIsMenuDismissed(true);
+    window.requestAnimationFrame(() => promptRef.current?.focus());
+  };
+
+  const removeCommand = (command: WidgetSlashCommand) => {
+    setPrompt(composeWidgetPrompt(selectedCommands.filter((item) => item.type !== command.type), composerText));
     window.requestAnimationFrame(() => promptRef.current?.focus());
   };
 
@@ -44,13 +59,17 @@ export function WidgetCommandComposer({
             <strong>Composants disponibles</strong>
             <span>{commands.length}</span>
           </div>
-          <div className="widget-command-options">
+          <div className="widget-command-options" role="listbox" aria-label="Types de composants">
             {commands.map((command, index) => (
               <button
+                ref={index === selectedCommandIndex ? activeCommandRef : undefined}
                 id={`widget-command-${command.type}`}
                 key={command.type}
                 className={index === selectedCommandIndex ? 'active' : ''}
                 type="button"
+                role="option"
+                aria-selected={index === selectedCommandIndex}
+                tabIndex={-1}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectCommand(command)}
               >
@@ -62,19 +81,29 @@ export function WidgetCommandComposer({
           <p id="widget-command-help">↑↓ naviguer · Entrée sélectionner · Échap fermer</p>
         </section>
       )}
-      <div className="assistant-composer">
+      <div className={selectedCommands.length > 0 ? 'assistant-composer has-widget-selection' : 'assistant-composer'}>
+        {selectedCommands.length > 0 && <div className="selected-widget-badges" aria-label="Composants sélectionnés">
+          {selectedCommands.map((command) => <button key={command.type} className="selected-widget-badge" type="button" onClick={() => removeCommand(command)} aria-label={`Retirer ${command.label}`} title={`Retirer ${command.label}`}><code>{command.command}</code><X size={14} aria-hidden="true" /></button>)}
+        </div>}
         <textarea
           ref={promptRef}
-          value={prompt}
+          value={composerText}
           aria-label="Message assistant"
           aria-describedby={isMenuOpen ? 'widget-command-help' : undefined}
-          placeholder="Parle à Databloom, demande une analyse ou des widgets..."
+          aria-controls={isMenuOpen ? 'widget-command-menu' : undefined}
+          aria-activedescendant={isMenuOpen ? `widget-command-${commands[selectedCommandIndex]?.type}` : undefined}
+          placeholder={selectedCommands.length > 0 ? 'Ajoute une consigne pour ces composants…' : 'Parle à Databloom, demande une analyse ou des widgets...'}
           onChange={(event) => {
-            setPrompt(event.target.value);
+            setPrompt(composeWidgetPrompt(selectedCommands, event.target.value));
             setActiveCommandIndex(0);
             setIsMenuDismissed(false);
           }}
           onKeyDown={(event) => {
+            if (!isMenuOpen && event.key === 'Backspace' && composerText.length === 0 && selectedCommands.length > 0) {
+              event.preventDefault();
+              removeCommand(selectedCommands[selectedCommands.length - 1]);
+              return;
+            }
             if (isMenuOpen && event.key === 'ArrowDown') {
               event.preventDefault();
               setActiveCommandIndex((current) => (current + 1) % commands.length);

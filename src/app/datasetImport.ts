@@ -5,6 +5,7 @@ type CellValue = string | number | Date | null | undefined;
 export type RawRow = Record<string, CellValue>;
 
 const dateLikePattern = /^(\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})$/;
+const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
 const createUniqueColumns = (headers: string[]) => {
   const seen = new Map<string, number>();
@@ -21,7 +22,10 @@ const parseNumber = parseProfileNumber;
 
 const parseDate = (value: unknown) => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    // SheetJS creates date-only cells close to local midnight. Rounding to the
+    // nearest UTC day prevents a Paris timezone offset from moving them to the
+    // previous calendar day when they are normalized with toISOString().
+    return new Date(Math.round(value.getTime() / millisecondsPerDay) * millisecondsPerDay).toISOString().slice(0, 10);
   }
 
   if (typeof value !== 'string') {
@@ -90,9 +94,14 @@ const normalizeValue = (value: CellValue, type: DatasetField['type']) => {
 
 export const createDatasetFromRows = (name: string, rawRows: RawRow[]): Dataset => {
   const nonEmptyRows = rawRows.filter((row) => Object.values(row).some((value) => value !== '' && value != null));
-  const columns = createUniqueColumns([...new Set(nonEmptyRows.flatMap((row) => Object.keys(row)))]);
-  const fields = columns.map((column) => inferField(column, nonEmptyRows.map((row) => row[column])));
-  const rows = nonEmptyRows.map((row) => Object.fromEntries(fields.map((field) => [field.name, normalizeValue(row[field.name], field.type)])));
+  const sourceColumns = [...new Set(nonEmptyRows.flatMap((row) => Object.keys(row)))];
+  const normalizedColumns = createUniqueColumns(sourceColumns);
+  const columns = sourceColumns.map((source, index) => ({ source, name: normalizedColumns[index] }));
+  const fields = columns.map((column) => inferField(column.name, nonEmptyRows.map((row) => row[column.source])));
+  const rows = nonEmptyRows.map((row) => Object.fromEntries(columns.map((column, index) => [
+    column.name,
+    normalizeValue(row[column.source], fields[index].type),
+  ])));
 
   return {
     id: crypto.randomUUID(),

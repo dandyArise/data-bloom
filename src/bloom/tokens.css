@@ -26,8 +26,16 @@
   --seg-small-biz: #6e8b4f;
   --country-c: #3f6fa0;
   --line-c: #5b4b9a;
+  --ui-country: #3f6fa0;
+  --ui-line: #5b4b9a;
   --user-bg: #efeffb;
   --user-ink: #4a3f8a;
+  --heatmap-base: #2f5d62;
+  --heatmap-1: color-mix(in srgb, var(--heatmap-base) 14%, var(--surface));
+  --heatmap-2: color-mix(in srgb, var(--heatmap-base) 30%, var(--surface));
+  --heatmap-3: color-mix(in srgb, var(--heatmap-base) 48%, var(--surface));
+  --heatmap-4: color-mix(in srgb, var(--heatmap-base) 70%, var(--surface));
+  --heatmap-5: var(--heatmap-base);
   --font-ui: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
   --text-xs: 13px;
@@ -87,11 +95,65 @@
   --seg-small-biz: #8cae6e;
   --country-c: #5aa0e0;
   --line-c: #a08fd1;
+  --ui-country: #5aa0e0;
+  --ui-line: #a08fd1;
   --user-bg: #232042;
   --user-ink: #c7beea;
+  --heatmap-base: #6fb3b8;
+  --heatmap-1: color-mix(in srgb, var(--heatmap-base) 18%, var(--surface));
+  --heatmap-2: color-mix(in srgb, var(--heatmap-base) 34%, var(--surface));
+  --heatmap-3: color-mix(in srgb, var(--heatmap-base) 52%, var(--surface));
+  --heatmap-4: color-mix(in srgb, var(--heatmap-base) 72%, var(--surface));
+  --heatmap-5: var(--heatmap-base);
   --shadow-resting: 0 1px 2px rgba(0, 0, 0, 0.28);
   --shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.34);
   --shadow-focus: 0 0 0 3px var(--accent-soft);
+}
+
+/* Palettes Bloom : elles ne modifient que les encodages visuels des graphiques.
+   Les couleurs sémantiques et le chrome de l'application restent pilotés par le thème. */
+[data-palette="indigo"] {
+  --seg-government: #496cae;
+  --seg-midmarket: #765eae;
+  --seg-channel: #4e84a8;
+  --seg-enterprise: #b47b3e;
+  --seg-small-biz: #668158;
+  --country-c: #486eb0;
+  --line-c: #6252a7;
+  --heatmap-base: #4659a8;
+}
+
+[data-palette="forest"] {
+  --seg-government: #4e7395;
+  --seg-midmarket: #7c6fa0;
+  --seg-channel: #3e8d75;
+  --seg-enterprise: #ae7a3c;
+  --seg-small-biz: #69854c;
+  --country-c: #4d7c82;
+  --line-c: #4e638d;
+  --heatmap-base: #356b50;
+}
+
+[data-theme="dark"][data-palette="indigo"] {
+  --seg-government: #7da0e2;
+  --seg-midmarket: #ad98e2;
+  --seg-channel: #75add5;
+  --seg-enterprise: #d6a967;
+  --seg-small-biz: #94af7c;
+  --country-c: #82a7ea;
+  --line-c: #a99ce6;
+  --heatmap-base: #9daaf4;
+}
+
+[data-theme="dark"][data-palette="forest"] {
+  --seg-government: #7aa5c6;
+  --seg-midmarket: #a391c7;
+  --seg-channel: #67b89a;
+  --seg-enterprise: #d1a467;
+  --seg-small-biz: #94b678;
+  --country-c: #78aab0;
+  --line-c: #829ac5;
+  --heatmap-base: #79c79d;
 }
 
 body {

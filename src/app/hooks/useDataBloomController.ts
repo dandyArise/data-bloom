@@ -34,6 +34,7 @@ export function useDataBloomController() {
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? conversations[0];
   const conversationDatasetId = activeConversation?.datasetId || activeDatasetId;
   const dataset = datasets.find((item) => item.id === conversationDatasetId) ?? datasets.find((item) => item.id === activeDatasetId) ?? emptyDataset;
+  const llmDataset = datasets.find((item) => item.id === activeConversation?.llmDatasetId) ?? dataset;
   const messages = activeConversation?.messages ?? [];
   const widgets = activeConversation?.widgets ?? [];
   const [workspaceUi, dispatchWorkspaceUi] = useReducer(workspaceUiReducer, undefined, (): WorkspaceUiState => ({ selectedId: activeConversation?.widgets[0]?.id ?? '', viewMode: 'board', gridQualityFilter: null }));
@@ -67,17 +68,21 @@ export function useDataBloomController() {
   }, [activeConversationId, activeDatasetId, conversations, datasets, lmConfig]);
 
   const selectedWidget = selectedId ? widgets.find((widget) => widget.id === selectedId) : undefined;
+  const selectedWidgetDataset = selectedWidget
+    ? datasets.find((item) => item.id === selectedWidget.datasetId) ?? emptyDataset
+    : dataset;
   const datasetWidgets = widgets;
   const activeWidgets = datasetWidgets.filter((widget) => widget.status !== 'rejected');
   const pendingWidgets = datasetWidgets.filter((widget) => widget.status === 'pending');
   const acceptedWidgets = datasetWidgets.filter((widget) => widget.status === 'accepted');
-  const dashboardTitle = dataset.id ? dataset.name : 'Aucun dataset';
+  const dashboardTitle = activeConversation?.title.trim() || (dataset.id ? dataset.name : 'Aucun dataset');
+  const boardId = activeConversation ? `board-${activeConversation.id}` : 'board-main';
 
   const uiJson = useMemo(
     () => ({
       product: 'Databloom',
       board: {
-        id: 'board-main',
+        id: boardId,
         name: dashboardTitle,
         datasetId: dataset.id,
         pages: [
@@ -89,7 +94,7 @@ export function useDataBloomController() {
         ],
       },
     }),
-    [acceptedWidgets, dashboardTitle, dataset.id],
+    [acceptedWidgets, boardId, dashboardTitle, dataset.id],
   );
 
   const workflowYaml = useMemo(
@@ -106,9 +111,9 @@ export function useDataBloomController() {
         '  - id: rebuild_board',
         '    uses: databloom.board.refresh',
         'output:',
-        '  boardId: board-main',
+        `  boardId: ${boardId}`,
       ].join('\n'),
-    [dataset.id],
+    [boardId, dataset.id],
   );
 
   const updateActiveConversation = useCallback((updater: (conversation: Conversation) => Conversation) => {
@@ -142,12 +147,22 @@ export function useDataBloomController() {
     setSelectedId('');
   }, [updateActiveConversation]);
 
+  const selectLmDataset = useCallback((id: string) => {
+    if (!datasets.some((item) => item.id === id)) return;
+    updateActiveConversation((conversation) => ({
+      ...conversation,
+      llmDatasetId: id,
+      datasetIds: Array.from(new Set([...conversation.datasetIds, id])),
+    }));
+  }, [datasets, updateActiveConversation]);
+
   const createNewConversation = useCallback(() => {
     const conversation = createConversation(dataset.id);
     setConversations((current) => [conversation, ...current]);
     setActiveConversationId(conversation.id);
     setActiveDatasetId(dataset.id);
     setSelectedId('');
+    setPrompt('');
     setViewMode('board');
   }, [dataset.id]);
 
@@ -160,6 +175,7 @@ export function useDataBloomController() {
     setActiveConversationId(id);
     setActiveDatasetId(conversation.datasetId);
     setSelectedId(conversation.widgets.find((widget) => widget.status !== 'rejected')?.id ?? '');
+    setPrompt('');
     setViewMode('board');
   }, [conversations]);
 
@@ -225,9 +241,12 @@ export function useDataBloomController() {
       const nextActiveDatasetId = resolvedDatasets[0].id;
       setDatasets((current) => [...current, ...resolvedDatasets]);
       setActiveDatasetId(nextActiveDatasetId);
-      updateActiveConversation((conversation) => resolvedDatasets.reduce((linkedConversation, nextDataset) => (
-        linkDatasetToConversation(linkedConversation, nextDataset.id)
-      ), conversation));
+      updateActiveConversation((conversation) => ({
+        ...resolvedDatasets.reduce((linkedConversation, nextDataset) => (
+          linkDatasetToConversation(linkedConversation, nextDataset.id)
+        ), conversation),
+        llmDatasetId: nextActiveDatasetId,
+      }));
       setLmStatus(`${resolvedDatasets.length} dataset(s) importé(s)`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Import impossible.';
@@ -241,14 +260,20 @@ export function useDataBloomController() {
   const connectApiDataset = useCallback((nextDataset: Dataset, source: Pick<ApiSourceConfig, 'url' | 'syncFrequency'>) => {
     setDatasets((current) => [...current, { ...nextDataset, source: { type: 'api', ...source, lastSyncedAt: nowIso() } }]);
     setActiveDatasetId(nextDataset.id);
-    updateActiveConversation((conversation) => linkDatasetToConversation(conversation, nextDataset.id));
+    updateActiveConversation((conversation) => ({
+      ...linkDatasetToConversation(conversation, nextDataset.id),
+      llmDatasetId: nextDataset.id,
+    }));
     setLmStatus(`API connectée : ${nextDataset.rows.length} lignes, ${nextDataset.fields.length} colonnes`);
   }, [updateActiveConversation]);
 
   const connectMonitorDataset = useCallback((nextDataset: Dataset) => {
     setDatasets((current) => [...current, nextDataset]);
     setActiveDatasetId(nextDataset.id);
-    updateActiveConversation((conversation) => linkDatasetToConversation(conversation, nextDataset.id));
+    updateActiveConversation((conversation) => ({
+      ...linkDatasetToConversation(conversation, nextDataset.id),
+      llmDatasetId: nextDataset.id,
+    }));
     setLmStatus(`Supervision ajoutée : ${nextDataset.name}`);
   }, [updateActiveConversation]);
 
@@ -274,12 +299,15 @@ export function useDataBloomController() {
     setLmConfig((current) => ({ ...current, ...patch }));
   }, []);
 
-  const testLmConnection = useCallback(async () => {
+  const testLmConnection = useCallback(async (): Promise<string[]> => {
     setIsTestingLm(true);
     setLmStatus('Test connexion LLM...');
 
     try {
       const models = await listLmModels(lmConfig);
+      if (models.length > 0 && (!lmConfig.model || !models.includes(lmConfig.model))) {
+        setLmConfig((current) => ({ ...current, model: models[0] }));
+      }
       setLmLogs([{
         at: nowIso(),
         level: 'info',
@@ -288,10 +316,12 @@ export function useDataBloomController() {
         detail: models.slice(0, 5).join(', '),
       }]);
       setLmStatus(models.length > 0 ? `LLM OK - ${models.length} modele(s)` : 'LLM OK - aucun modele liste');
+      return models;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Connexion LLM impossible.';
       setLmLogs([{ at: nowIso(), level: 'error', step: 'models', message: 'Test de connexion echoue.', detail: message }]);
       setLmStatus(`LLM erreur: ${message}`);
+      return [];
     } finally {
       setIsTestingLm(false);
     }
@@ -312,6 +342,7 @@ export function useDataBloomController() {
         return {
           ...conversation,
           datasetId: conversation.datasetId === id ? datasetIds[0] ?? fallbackDatasetId : conversation.datasetId,
+          llmDatasetId: conversation.llmDatasetId === id ? datasetIds[0] ?? fallbackDatasetId : conversation.llmDatasetId,
           datasetIds,
           widgets: conversation.widgets.filter((widget) => widget.datasetId !== id),
           updatedAt: nowIso(),
@@ -361,11 +392,15 @@ export function useDataBloomController() {
     }
 
     setIsGenerating(true);
+    if (activeConversation && ['Nouvelle discussion', 'Discussion locale'].includes(activeConversation.title)) {
+      const title = submittedPrompt.replace(/^(?:\/[a-z0-9-]+\s*)+/i, '').trim() || submittedPrompt;
+      updateActiveConversation((conversation) => ({ ...conversation, title: title.slice(0, 48) }));
+    }
     const lmPrompt = expandWidgetSlashCommand(submittedPrompt);
     if (!promptOverride) setPrompt('');
     setLmStatus('Connexion a LM Studio...');
-    const datasetForRequest = datasets.find((item) => item.id === options?.datasetId) ?? dataset;
-      const widgetsForRequest = activeWidgets;
+    const datasetForRequest = datasets.find((item) => item.id === options?.datasetId) ?? llmDataset;
+    const widgetsForRequest = activeWidgets;
     const requestId = makeId('req');
     setMessages((current) => [
       ...current,
@@ -402,7 +437,7 @@ export function useDataBloomController() {
     } finally {
       setIsGenerating(false);
     }
-  }, [activeWidgets, addAssistantResponse, connectMonitorDataset, dataset, datasets, isGenerating, lmConfig, prompt, setMessages]);
+  }, [activeConversation, activeWidgets, addAssistantResponse, connectMonitorDataset, datasets, isGenerating, llmDataset, lmConfig, prompt, setMessages, updateActiveConversation]);
 
   const retryLastTurn = useCallback(() => {
     const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user');
@@ -410,10 +445,9 @@ export function useDataBloomController() {
       return;
     }
 
-    const retryDatasetId = lastUserMessage.datasetId ?? dataset.id;
+    const retryDatasetId = lastUserMessage.datasetId ?? llmDataset.id;
     if (retryDatasetId) {
-      setActiveDatasetId(retryDatasetId);
-      updateActiveConversation((conversation) => linkDatasetToConversation(conversation, retryDatasetId));
+      selectLmDataset(retryDatasetId);
     }
 
     if (lastUserMessage.requestId) {
@@ -431,7 +465,7 @@ export function useDataBloomController() {
     }
 
     void generate(lastUserMessage.text, { datasetId: retryDatasetId });
-  }, [dataset.id, generate, isGenerating, messages, setMessages, setWidgets, updateActiveConversation]);
+  }, [generate, isGenerating, llmDataset.id, messages, selectLmDataset, setMessages, setWidgets]);
 
   const acceptWidget = useCallback((id: string) => updateWidget(id, { status: 'accepted' }), [updateWidget]);
   const rejectWidget = useCallback((id: string) => updateWidget(id, { status: 'rejected' }), [updateWidget]);
@@ -528,8 +562,10 @@ export function useDataBloomController() {
     deleteConversation,
     messages,
     dataset,
+    llmDataset,
     datasets,
     selectDataset,
+    selectLmDataset,
     prompt,
     setPrompt,
     generate,
@@ -570,6 +606,7 @@ export function useDataBloomController() {
     workflowYaml,
     showInspector,
     selectedWidget,
+    selectedWidgetDataset,
     dashboardTitle,
   };
 }
