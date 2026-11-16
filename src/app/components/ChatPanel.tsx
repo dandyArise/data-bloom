@@ -19,6 +19,7 @@ export function ChatPanel({
   datasets,
   onSelectLmDataset,
   pendingWidgets,
+  requestControls,
   prompt,
   setPrompt,
   onGenerate,
@@ -40,6 +41,7 @@ export function ChatPanel({
   datasets: Dataset[];
   onSelectLmDataset: (id: string) => void;
   pendingWidgets: Widget[];
+  requestControls: ReactNode;
   prompt: string;
   setPrompt: (value: string) => void;
   onGenerate: (promptOverride?: string, options?: { datasetId?: string }) => Promise<void>;
@@ -211,6 +213,7 @@ export function ChatPanel({
           </article>
         ))}
       </div>
+      {requestControls}
       <WidgetCommandComposer
         prompt={prompt}
         setPrompt={setPrompt}

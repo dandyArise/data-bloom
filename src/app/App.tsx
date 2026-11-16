@@ -12,10 +12,13 @@ import { DataGridView } from './components/tables/DataGridView';
 import { useDataBloomController } from './hooks/useDataBloomController';
 import { useTheme } from './hooks/useTheme';
 
-export default function App() {
+import type { PersistedState } from './appState';
+import { RequestPreview } from './components/RequestPreview';
+
+export default function App({ initialState }: { initialState: PersistedState }) {
   const [isConversationsOpen, setIsConversationsOpen] = useState(false);
   const { theme, toggleTheme, palette, setPalette } = useTheme();
-  const { isPresentationMode, pendingWidgets, resetBoard, togglePresentationMode, workspaceColumns, showNav, viewMode, setViewMode, isChatOpen, isInspectorOpen, setIsChatOpen, setIsInspectorOpen, showChat, conversations, activeConversation, createNewConversation, openConversation, renameConversation, deleteConversation, messages, dataset, llmDataset, datasets, selectDataset, selectLmDataset, prompt, setPrompt, generate, retryLastTurn, clearConversation, isGenerating, lmConfig, updateLmConfig, isLmConfigOpen, setIsLmConfigOpen, testLmConnection, isTestingLm, lmLogs, assistantMode, setAssistantMode, startChatResize, chatPanelWidth, acceptWidget, rejectWidget, selectWidget, activeWidgets, selectedId, updateWidget, deleteWidget, acceptedWidgets, isImporting, importError, renameDataset, deleteDataset, importDataset, setGridQualityFilter, removeDuplicateRows, connectApiDataset, connectMonitorDataset, checkMonitorDataset, gridQualityFilter, uiJson, workflowYaml, showInspector, selectedWidget, selectedWidgetDataset, dashboardTitle } = useDataBloomController();
+  const { saveError, isPresentationMode, pendingWidgets, resetBoard, togglePresentationMode, workspaceColumns, showNav, viewMode, setViewMode, isChatOpen, isInspectorOpen, setIsChatOpen, setIsInspectorOpen, showChat, conversations, activeConversation, createNewConversation, openConversation, renameConversation, deleteConversation, messages, dataset, llmDataset, datasets, selectDataset, selectLmDataset, prompt, setPrompt, generate, retryLastTurn, clearConversation, isGenerating, lmConfig, updateLmConfig, isLmConfigOpen, setIsLmConfigOpen, testLmConnection, isTestingLm, lmLogs, assistantMode, setAssistantMode, startChatResize, chatPanelWidth, acceptWidget, rejectWidget, selectWidget, activeWidgets, selectedId, updateWidget, deleteWidget, acceptedWidgets, isImporting, importError, renameDataset, deleteDataset, importDataset, setGridQualityFilter, removeDuplicateRows, connectApiDataset, connectMonitorDataset, checkMonitorDataset, gridQualityFilter, uiJson, workflowYaml, showInspector, selectedWidget, selectedWidgetDataset, dashboardTitle } = useDataBloomController(initialState);
   return (
     <div className={isPresentationMode ? 'app-shell presentation-mode' : 'app-shell'}>
       <AppTopBar
@@ -29,6 +32,7 @@ export default function App() {
         onTogglePresentation={() => { setIsConversationsOpen(false); togglePresentationMode(); }}
       />
       <div className="workspace" style={{ gridTemplateColumns: workspaceColumns }}>
+        {saveError && <div role="alert" style={{ position: 'fixed', bottom: 12, left: 12, zIndex: 100, background: 'Canvas', color: 'CanvasText', padding: 12 }}>{saveError}</div>}
         {showNav && (
           <NavigationRail
             viewMode={viewMode}
@@ -69,6 +73,8 @@ export default function App() {
             datasets={datasets}
             onSelectLmDataset={selectLmDataset}
             pendingWidgets={pendingWidgets}
+            requestControls={<RequestPreview prompt={prompt} dataset={llmDataset} datasets={datasets} widgets={activeWidgets}
+              config={lmConfig} onRowsChange={(includeRows) => updateLmConfig({ includeRows })} />}
             prompt={prompt}
             setPrompt={setPrompt}
             onGenerate={generate}

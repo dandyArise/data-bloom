@@ -68,6 +68,12 @@ Ouvrez ensuite [http://127.0.0.1:5173](http://127.0.0.1:5173). Un jeu de donnée
 
 En développement, Vite relaie `/lmstudio` vers `http://127.0.0.1:1234`. DataBloom utilise les points de terminaison compatibles avec OpenAI `/models` et `/chat/completions`. La configuration reste dans le navigateur ; aucun service distant n'est requis pour le mode local.
 
+## Utiliser Codex avec un compte ChatGPT
+
+Lancez `codex login` sur le poste, choisissez ChatGPT et vérifiez la connexion avec `codex login status`. La commande `codex` doit être accessible depuis le terminal qui lance `pnpm dev`.
+
+Dans **LLM → Fournisseur**, choisissez **Codex (compte ChatGPT)**. Le service du serveur de développement transmet à Codex la consigne et le contexte préparé par DataBloom, qui peut inclure des exemples de données. Les propositions apparaissent dans le chat pour validation. Pour revenir au modèle local, sélectionnez **LM Studio**.
+
 ## Architecture
 
 ```text

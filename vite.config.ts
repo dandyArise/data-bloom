@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { codexBridge } from './server/codexBridge';
 import { promises as dns } from 'node:dns';
 import { execFile } from 'node:child_process';
 import { fileURLToPath, URL } from 'node:url';
@@ -44,7 +45,7 @@ const monitorProbe = () => ({
 });
 
 export default defineConfig({
-  plugins: [react(), monitorProbe()],
+  plugins: [react(), monitorProbe(), codexBridge()],
   resolve: {
     alias: {
       '@bloom': fileURLToPath(new URL('./src/bloom', import.meta.url)),

@@ -26,8 +26,10 @@ export function LlmConfigPanel({
   };
 
   useEffect(() => {
-    void onTestLmConnection().then(setModels);
-  }, [onTestLmConnection]);
+    let active = true;
+    if (lmConfig.provider !== 'codex') void onTestLmConnection().then((items) => { if (active) setModels(items); });
+    return () => { active = false; };
+  }, [lmConfig.provider, onTestLmConnection]);
 
   return (
     <div className="llm-config-panel">
@@ -35,6 +37,15 @@ export function LlmConfigPanel({
         <KeyRound size={22} />
         <strong>Configuration LLM</strong>
       </div>
+      <label>Fournisseur
+        <select value={lmConfig.provider} onChange={(event) => onUpdateLmConfig({ provider: event.target.value as LmConfig['provider'] })}>
+          <option value="lmstudio">LM Studio</option>
+          <option value="codex">Codex (compte ChatGPT)</option>
+        </select>
+      </label>
+      {lmConfig.provider === 'codex' ? (
+        <p>Codex utilise la connexion ChatGPT du poste. Le contexte des données, qui peut inclure des exemples de lignes, est envoyé à OpenAI.</p>
+      ) : <>
       <label>
         Base URL compatible OpenAI
         <input
@@ -101,6 +112,8 @@ export function LlmConfigPanel({
           Détecter les modèles chargés
         </button>
       </div>
+      <p>La clé est stockée localement dans ce navigateur.</p>
+      </>}
       <div className="llm-log-panel">
         <strong>Logs LLM</strong>
         {lmLogs.length === 0 ? (
@@ -117,7 +130,6 @@ export function LlmConfigPanel({
           </ul>
         )}
       </div>
-      <p>La clé est stockée localement dans ce navigateur.</p>
     </div>
   );
 }

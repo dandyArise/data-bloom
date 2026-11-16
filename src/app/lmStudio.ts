@@ -62,6 +62,8 @@ export class LmAssistantError extends Error {
 }
 
 export type LmConfig = {
+  provider: 'lmstudio' | 'codex';
+  includeRows: boolean;
   baseUrl: string;
   model: string;
   apiKey: string;
@@ -70,6 +72,8 @@ export type LmConfig = {
 };
 
 export const defaultLmConfig: LmConfig = {
+  provider: 'lmstudio',
+  includeRows: false,
   baseUrl: '/lmstudio/v1',
   model: '',
   apiKey: '',
@@ -126,7 +130,7 @@ const buildDatasetContext = (dataset: Dataset, includeRows: boolean) => {
         fillRate: profile ? Math.round(profile.fillRate * 100) / 100 : undefined,
         distinctCount: profile?.distinctCount,
         ...(profile && !profile.eligibleForWidgets ? { exclusionReason: profile.reason.slice(0, 120) } : {}),
-        examples: Array.from(distinctValues).slice(0, 3),
+        ...(includeRows ? { examples: Array.from(distinctValues).slice(0, 3) } : {}),
         ...(numericValues.length > 0 ? { min: Math.min(...numericValues), max: Math.max(...numericValues) } : {}),
       };
     }),
@@ -225,15 +229,24 @@ const extractJson = (content: string) => {
   return JSON.parse(withoutFence.slice(start, end + 1)) as { reply?: unknown; widgets?: unknown[] };
 };
 
-const normalizeDraft = (value: unknown, datasets: Dataset[], fallbackDataset: Dataset): LmWidgetDraft | null => {
+class UnknownColumnError extends Error {}
+
+const normalizeDraft = (value: unknown, datasets: Dataset[], fallbackDataset: Dataset, unknownColumns: Set<string>): LmWidgetDraft | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
 
   const draft = value as Partial<LmWidgetDraft>;
   const dataset = datasets.find((item) => item.id === draft.datasetId) ?? fallbackDataset;
-  const fallbackField = dataset.fields.find(isAggregatableMeasureField)?.name ?? dataset.fields[0]?.name;
-  const field = dataset.fields.some((schema) => schema.name === draft.field) ? draft.field : fallbackField;
+  const field = draft.field;
+  const names = new Set(dataset.fields.map((column) => column.name));
+  const refs = [field, draft.config?.xField, draft.config?.yField, draft.config?.groupBy,
+    ...(Array.isArray(draft.config?.columns) ? draft.config.columns : [])];
+  const missing = refs.filter((name): name is string => Boolean(name) && !names.has(name!));
+  if (missing.length) {
+    for (const name of missing) unknownColumns.add(name);
+    return null;
+  }
 
   if (!draft.title || !draft.type || !widgetTypes.has(draft.type) || !field) {
     return null;
@@ -281,16 +294,16 @@ const normalizeDraft = (value: unknown, datasets: Dataset[], fallbackDataset: Da
   };
 };
 
-export const askLmStudioAssistant = async (
+export const prepareAssistantRequest = (
   prompt: string,
   dataset: Dataset,
   widgets: Widget[],
   config?: Partial<LmConfig>,
   availableDatasets: Dataset[] = [dataset],
-): Promise<LmAssistantResponse> => {
+) => {
   const logs: LmLogEntry[] = [];
-  const includeRows = analysisRequestPattern.test(prompt);
-  const internalTools = inferInternalTools(prompt, includeRows);
+  const includeRows = config?.includeRows === true;
+  const internalTools = inferInternalTools(prompt, analysisRequestPattern.test(prompt));
   const resolvedConfig = normalizeLmConfig(config);
   const contextDatasets = multiSourceRequestPattern.test(prompt) ? availableDatasets : [dataset];
   const requestTokenBudget = Math.min(Math.max(resolvedConfig.maxTokens, 600), 1400);
@@ -304,11 +317,8 @@ export const askLmStudioAssistant = async (
   createLog(logs, 'info', 'tools', `Outils internes: ${internalTools.join(', ')}.`);
   createLog(logs, 'info', 'model_budget', `Budget de sortie: ${requestTokenBudget} tokens avec le modele configure.`);
 
-  const model = resolvedConfig.model.trim();
+  const model = resolvedConfig.provider === 'codex' ? 'Codex' : resolvedConfig.model.trim();
 
-  if (!model) {
-    throw new Error('Choisis le modele LLM a utiliser. Databloom ne selectionne jamais de modele automatiquement.');
-  }
 
   const systemPrompt = [
     'Tu es l assistant Databloom, un copilote data/dashboard.',
@@ -333,7 +343,7 @@ export const askLmStudioAssistant = async (
     'Pour une heatmap, utilise type "heatmap", config.xField pour les colonnes, config.groupBy pour les lignes et config.yField pour l intensite numerique. Utilise aggregation "count" pour une heatmap de frequence sans mesure.',
     'Si le dataset contient des champs, considere qu il est bien configure. Ne dis jamais qu aucun dataset n est configure dans ce cas.',
     'Par defaut, tu recois uniquement le schema et un profil leger du dataset : ne pretends jamais avoir lu toutes les lignes.',
-    'Des lignes d echantillon ne sont fournies que pour une demande d analyse explicite. Base alors tes conclusions sur cet echantillon et indique cette limite.',
+    'Si sampleRows est present, les lignes sont un echantillon. Indique cette limite dans tes conclusions.',
     'Les widgets sont seulement des propositions: l utilisateur doit les accepter.',
     'Ne dis jamais qu un widget est ajouté, créé, accepté ou prêt à l emploi si tu ne l as pas inclus dans widgets. Ne dis jamais qu il est accepté : seule l interface peut le faire après une action utilisateur.',
     'Chaque widget doit contenir datasetId et utiliser seulement les champs de ce dataset. Tu peux proposer un dashboard multi-source en choisissant un datasetId différent pour chaque widget, sans supprimer les widgets existants.',
@@ -368,7 +378,7 @@ export const askLmStudioAssistant = async (
     logs,
     'info',
     'context_budget',
-    'Contexte compact prepare pour LM Studio.',
+    'Contexte compact préparé pour le fournisseur sélectionné.',
     `${systemPrompt.length + userPrompt.length} caracteres avant le schema de reponse`,
   );
 
@@ -452,12 +462,26 @@ export const askLmStudioAssistant = async (
     },
   };
 
+  const codex = resolvedConfig.provider === 'codex';
+  const endpoint = codex ? '/api/codex' : resolvedConfig.baseUrl + '/chat/completions';
+  const body = codex
+    ? JSON.stringify({ prompt: systemPrompt + '\n\n' + userPrompt, schema: jsonSchemaFormat.json_schema.schema })
+    : createBody(model, jsonSchemaFormat);
+  return { body, endpoint, model, resolvedConfig, createBody, jsonSchemaFormat, requestTokenBudget, includeRows, logs };
+};
+
+export const askLmStudioAssistant = async (
+  prompt: string, dataset: Dataset, widgets: Widget[], config?: Partial<LmConfig>, availableDatasets: Dataset[] = [dataset],
+): Promise<LmAssistantResponse> => {
+  const { body, endpoint, model, resolvedConfig, createBody, jsonSchemaFormat, requestTokenBudget, includeRows, logs } =
+    prepareAssistantRequest(prompt, dataset, widgets, config, availableDatasets);
+  if (!model) throw new Error('Choisis le modèle LLM à utiliser.');
   const requestCompletion = async (modelName: string, responseFormat: unknown, responseMode: LmAssistantResponse['responseMode']) => {
     createLog(logs, 'info', 'request', `Tentative ${responseMode} avec ${modelName}.`);
-    const chatResponse = await requestWithTimeout(`${resolvedConfig.baseUrl}/chat/completions`, {
+    const chatResponse = await requestWithTimeout(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders(resolvedConfig) },
-      body: createBody(modelName, responseFormat),
+      body: responseMode === 'json_schema' ? body : createBody(modelName, responseFormat),
     }, completionTimeoutMs);
 
     if (!chatResponse.ok) {
@@ -486,14 +510,17 @@ export const askLmStudioAssistant = async (
     }
 
     const reply = parsed.reply.trim();
+    const unknownColumns = new Set<string>();
     const drafts = (parsed.widgets ?? [])
-      .map((item) => normalizeDraft(item, availableDatasets, dataset))
+      .map((item) => normalizeDraft(item, availableDatasets, dataset, unknownColumns))
       .filter((item): item is LmWidgetDraft => Boolean(item));
 
     if ((parsed.widgets ?? []).length !== drafts.length) {
       createLog(logs, 'warn', 'validation', `${(parsed.widgets ?? []).length - drafts.length} widget(s) rejetes par validation locale.`);
     }
 
+    const rejection = unknownColumns.size ? `Proposition rejetée pour colonne inconnue : ${[...unknownColumns].join(', ')}.` : '';
+    if (rejection && !drafts.length) throw new UnknownColumnError(rejection);
     if ((parsed.widgets ?? []).length > 0 && drafts.length === 0) {
       throw new Error('Le modele a propose des widgets invalides : aucun widget ne peut etre affiche.');
     }
@@ -509,8 +536,24 @@ export const askLmStudioAssistant = async (
       && ['http', 'dns', 'ping'].includes(monitorConfig.probeType) && ['manual', '15m', '1h', '24h'].includes(monitorConfig.syncFrequency)
       ? { name: monitorConfig.name.slice(0, 80), url: monitorConfig.url.trim(), probeType: monitorConfig.probeType, syncFrequency: monitorConfig.syncFrequency } as LmMonitorDraft
       : undefined;
-    return { reply, widgets: drafts, monitor };
+    return { reply: rejection ? reply + '\n' + rejection : reply, widgets: drafts, monitor };
   };
+
+  if (resolvedConfig.provider === 'codex') {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    if (!response.headers.get('content-type')?.includes('application/json')) {
+      throw new Error('Le service Codex nécessite Data Bloom lancé localement avec pnpm dev.');
+    }
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Connexion Codex impossible.');
+    const parsed = parseCompletion(result.content);
+    createLog(logs, 'info', 'success', 'Réponse Codex validée.');
+    return { ...parsed, logs, model, responseMode: 'json_schema', rowsIncluded: includeRows };
+  }
 
   const schemaUnsupported = (error: unknown) => error instanceof LmRequestError
     && error.status === 400
@@ -530,6 +573,7 @@ export const askLmStudioAssistant = async (
       return { ...parsed, logs, model: completion.modelName, responseMode: completion.responseMode, rowsIncluded: includeRows };
     } catch (error) {
       lastError = error;
+      if (error instanceof UnknownColumnError) throw new LmAssistantError(error.message, logs);
       createLog(logs, error instanceof LmRequestError ? 'warn' : 'error', 'json_schema', 'Echec json_schema.', error instanceof Error ? error.message : undefined);
 
       if (!schemaUnsupported(error) && !modelRejected(error) && !contextRejected(error)) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { LEGACY_STORAGE_KEY, STORAGE_KEY, createConversation, createLmProposalWidgets, emptyDataset, linkDatasetToConversation, loadState, makeId, nowIso, resolveStateValue, type Conversation, type StateValue } from '../appState';
+import { createConversation, createLmProposalWidgets, emptyDataset, linkDatasetToConversation, makeId, nowIso, resolveStateValue, type Conversation, type PersistedState, type StateValue } from '../appState';
+import { saveWorkspace } from '../workspaceStorage';
 import type { ApiSourceConfig } from '../apiSource';
 import { removeDuplicateDatasetRows } from '../dataQuality';
 import { importDatasetsFromFile } from '../datasetImport';
@@ -25,8 +26,8 @@ function workspaceUiReducer(state: WorkspaceUiState, action: WorkspaceUiAction):
   }
 }
 
-export function useDataBloomController() {
-  const [initialState] = useState(loadState);
+export function useDataBloomController(initialState: PersistedState) {
+  const [saveError, setSaveError] = useState('');
   const [conversations, setConversations] = useState<Conversation[]>(initialState.conversations);
   const [activeConversationId, setActiveConversationId] = useState(initialState.activeConversationId);
   const [datasets, setDatasets] = useState<Dataset[]>(initialState.datasets);
@@ -51,7 +52,7 @@ export function useDataBloomController() {
   const [lmConfig, setLmConfig] = useState<LmConfig>(initialState.lmConfig);
   const [isLmConfigOpen, setIsLmConfigOpen] = useState(false);
   const [isTestingLm, setIsTestingLm] = useState(false);
-  const [lmStatus, setLmStatus] = useState('LM Studio pret via :1234');
+  const [lmStatus, setLmStatus] = useState('Assistant prêt');
   const [lmLogs, setLmLogs] = useState<LmLogEntry[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(true);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
@@ -60,11 +61,12 @@ export function useDataBloomController() {
   const [assistantMode, setAssistantMode] = useState<'Rapide' | 'Approfondi'>('Approfondi');
 
   useEffect(() => {
-    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-  }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations, datasets, activeDatasetId, activeConversationId, lmConfig }));
+    let current = true;
+    saveWorkspace({ conversations, datasets, activeDatasetId, activeConversationId, lmConfig }).then(
+      () => { if (current) setSaveError(''); },
+      () => { if (current) setSaveError('Sauvegarde impossible. Les changements récents sont uniquement disponibles dans cet onglet.'); },
+    );
+    return () => { current = false; };
   }, [activeConversationId, activeDatasetId, conversations, datasets, lmConfig]);
 
   const selectedWidget = selectedId ? widgets.find((widget) => widget.id === selectedId) : undefined;
@@ -398,7 +400,8 @@ export function useDataBloomController() {
     }
     const lmPrompt = expandWidgetSlashCommand(submittedPrompt);
     if (!promptOverride) setPrompt('');
-    setLmStatus('Connexion a LM Studio...');
+    const provider = lmConfig.provider === 'codex' ? 'Codex' : 'LM Studio';
+    setLmStatus(`Connexion à ${provider}…`);
     const datasetForRequest = datasets.find((item) => item.id === options?.datasetId) ?? llmDataset;
     const widgetsForRequest = activeWidgets;
     const requestId = makeId('req');
@@ -416,9 +419,9 @@ export function useDataBloomController() {
       }
       const proposals = createLmProposalWidgets(assistantResponse.widgets, datasetForRequest.id, requestId, widgetsForRequest);
       addAssistantResponse(assistantResponse.reply, proposals, datasetForRequest.id, requestId);
-      setLmStatus(proposals.length > 0 ? `LM Studio OK - ${assistantResponse.model} - ${proposals.length} proposition(s)` : `LM Studio OK - ${assistantResponse.model}`);
+      setLmStatus(`${assistantResponse.model} · ${proposals.length} proposition(s)`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue pendant l appel LM Studio.';
+      const message = error instanceof Error ? error.message : `Erreur pendant l’appel à ${provider}.`;
       if (error instanceof LmAssistantError) {
         setLmLogs(error.logs);
       }
@@ -427,13 +430,13 @@ export function useDataBloomController() {
         {
           id: makeId('m'),
           role: 'assistant',
-          text: `Erreur LM Studio: ${message}`,
+          text: `Erreur ${provider}: ${message}`,
           datasetId: datasetForRequest.id,
           requestId,
           createdAt: nowIso(),
         },
       ]);
-      setLmStatus('LM Studio erreur');
+      setLmStatus(`${provider} en erreur`);
     } finally {
       setIsGenerating(false);
     }
@@ -541,6 +544,7 @@ export function useDataBloomController() {
   }, [chatPanelWidth, showNav]);
 
   return {
+    saveError,
     isPresentationMode,
     pendingWidgets,
     resetBoard,

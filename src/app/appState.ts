@@ -118,14 +118,13 @@ const createLegacyConversation = (state: Partial<PersistedState>, activeDatasetI
   };
 };
 
-export const loadState = (): PersistedState => {
+export const loadState = (saved?: PersistedState): PersistedState => {
   const fallbackConversation = createConversation('', 'Discussion locale');
   const fallback = { datasets: [], activeDatasetId: '', conversations: [fallbackConversation], activeConversationId: fallbackConversation.id, lmConfig: defaultLmConfig };
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return fallback;
-    const state = JSON.parse(raw) as Partial<PersistedState>;
+    const state = saved ?? JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null') as Partial<PersistedState> | null;
+    if (!state) return fallback;
     const storedDatasets = state.datasets ?? (state.dataset?.id ? [state.dataset] : []);
     // v2 used shortened, prefixed ids. Migrate them once so `Dataset.id` is a real UUID.
     const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);

@@ -309,6 +309,11 @@ button {
   padding: var(--space-6);
 }
 
+.request-preview { padding: 4px 12px; font-size: .85rem; }
+.request-preview label { display: flex; align-items: center; gap: 6px; }
+.request-preview-content { max-height: 24vh; overflow: auto; }
+.request-preview-content pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .chat-panel {
   overflow: hidden;
 }
